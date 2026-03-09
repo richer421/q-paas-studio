@@ -1,0 +1,3 @@
+[submodule "q-deploy"]
+	path = q-deploy
+	url = https://github.com/richer421/q-deploy.git

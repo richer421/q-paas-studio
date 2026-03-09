@@ -13,9 +13,7 @@ q-paas-studio/
 └── q-metahub/     # 元数据中心服务（子模块）
 ```
 
-## Git Submodule 工作模式
-
-本项目采用 Git Submodule 组织，每个子模块是**独立的 Git 仓库**：
+## 子模块远程仓库
 
 | 子模块 | 远程仓库 |
 |--------|----------|
@@ -24,25 +22,26 @@ q-paas-studio/
 | q-workflow | https://github.com/richer421/q-workflow.git |
 | q-metahub | https://github.com/richer421/q-metahub.git |
 
-### 工作规则
+## 子模块开发流程
 
-1. **子模块是独立仓库**：内容从各自的远程仓库管理，不在主仓库中直接修改
-2. **主仓库只保存引用**：主仓库记录子模块的 commit hash，不保存子模块内容
-3. **修改子模块**：在子模块目录内 commit & push，然后在主仓库更新引用
-4. **开发前先更新**：开发某个子模块前，必须先执行 `git submodule update --init --remote <submodule>` 同步最新内容
-
-### 常用命令
+**直接在子模块目录内开发、提交、推送，然后更新主仓库引用。**
 
 ```bash
-# 初始化所有子模块
-git submodule update --init --recursive
+# 1. 开发前先更新子模块
+git submodule update --init --remote <submodule>
 
-# 更新子模块到最新
-git submodule update --remote
+# 2. 进入子模块目录开发
+cd <submodule>
 
-# 修改子模块后，更新主仓库引用
-git add <submodule-path>
+# 3. 在子模块内提交并推送
+git add . && git commit -m "feat: xxx"
+git push origin main
+
+# 4. 回到主仓库，更新子模块引用
+cd ..
+git add <submodule>
 git commit -m "chore: update <submodule> reference"
+git push origin main
 ```
 
 ## 知识库
@@ -52,7 +51,7 @@ git commit -m "chore: update <submodule> reference"
 ## 开发指南
 
 如需开发某个子模块，请先阅读该模块目录下的 `CLAUDE.md`：
-- `q-deploy/CLAUDE.md` — 部署服务开��指南
+- `q-deploy/CLAUDE.md` — 部署服务开发指南
 - `q-ci/CLAUDE.md` — 持续集成服务开发指南
 - `q-workflow/CLAUDE.md` — 工作流引擎开发指南
 - `q-metahub/CLAUDE.md` — 元数据中心开发指南

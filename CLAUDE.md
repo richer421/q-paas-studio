@@ -48,6 +48,14 @@ git commit -m "chore: update <submodule> reference"
 
 开发前请阅读 `knowledge/` 目录下的文档，了解项目核心概念。
 
+## 开发指南
+
+如需开发某个子模块，请先阅读该模块目录下的 `CLAUDE.md`：
+- `q-deploy/CLAUDE.md` — 部署服务开��指南
+- `q-ci/CLAUDE.md` — 持续集成服务开发指南
+- `q-workflow/CLAUDE.md` — 工作流引擎开发指南
+- `q-metahub/CLAUDE.md` — 元数据中心开发指南
+
 ## 提交规范
 
 使用 Conventional Commits：`feat` / `fix` / `docs` / `refactor` / `chore`

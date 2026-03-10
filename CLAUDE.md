@@ -9,10 +9,10 @@ PaaS 开发工作室
 ## 项目结构
 
 ```
-q-paas-studio/
+q-paas-studio/                     # 项目根目录，所有路径基于此目录
 ├── knowledge/     # 知识库（主仓库内容）
-├── q-deploy/      # 部署服务（子模块）
 ├── q-ci/          # 持续集成服务（子模块）
+├── q-deploy/      # 部署服务（子模块）
 ├── q-workflow/    # 工作流引擎服务（子模块）
 └── q-metahub/     # 元数据中心服务（子模块）
 ```

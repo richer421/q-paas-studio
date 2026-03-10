@@ -47,6 +47,35 @@
                           └── 实例配置 → 运行
 ```
 
+## 跨模块实体关系
+
+```
+[q-metahub]                                    [q-ci]
+      │                                           │
+      ├── BusinessUnit                            │
+      │       │                                   │
+      │       └── DeployPlan                      │
+      │               │                           │
+      │               ├── CIConfig ──── 触发构建 ──▶ BuildArtifact
+      │               │                                   │
+      │               ├── CDConfig                        │
+      │               │     │                             │
+      │               │     ├── RenderEngine              │
+      │               │     └── ReleaseStrategy           │
+      │               │                                   │
+      │               └── InstanceConfig                  │
+      │                     │                             │
+      │                     ├── Spec (工作负载)            │
+      │                     └── AttachResources (配套资源) │
+      │                                                   │
+      └───────────────────────┬───────────────────────────┘
+                              ▼
+                     [q-deploy] Release
+                              │
+                              ├── WorkloadYAML  ←── 渲染引擎(InstanceConfig.Spec)
+                              └── ResourceYAML  ←── 渲染引擎(InstanceConfig.AttachResources)
+```
+
 ## 核心关系说明
 
 1. **项目**是代码仓库映射，每个业务单元关联一个项目；

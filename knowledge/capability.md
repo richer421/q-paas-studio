@@ -14,9 +14,9 @@
 
 核心发布能力，支持多种发布模式。
 
-- **发布**：完整部署，包含新包产物 + 新配置
-- **更新**：配置变更型发布，包产物不变
-- **回滚**：回退到历史版本
+- **发布**：完整部署，新产物 + 新工作负载 YAML + 新配套资源 YAML
+- **更新**：配套资源变更（ConfigMap/Secret/Service 等），工作负载和产物不变
+- **回滚**：回退到历史版本的工作负载 YAML + 配套资源 YAML
 - 渲染引擎（Helm/Kustomize/自定义模板）
 - 工作引擎（Kubernetes/Docker/SSH）— CDConfig 中尚未建模 WorkEngine 字段，当前仅实现 RenderEngine
 

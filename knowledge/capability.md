@@ -24,9 +24,10 @@
 
 构建与测试能力。
 
-- 代码构建
-- 测试执行
-- 产物管理
+- **CI 工作流**：Kafka 触发 → Jenkins 构建 → Webhook 回调，完整构建流水线
+- **产物管理**：构建产物（镜像）全生命周期管理，状态追踪（pending/running/success/failed）
+- **Jenkins 集成**：预定义模板 Job 参数化构建，ArtifactID 作为 correlation key
+- 测试执行（规划中）
 
 ### q-workflow（工作流引擎）
 
@@ -47,3 +48,12 @@
 - **CD配置管理**：部署策略、渲染引擎配置
 - **实例配置管理**：环境（dev/test/gray/prod）、K8s 原生工作负载 Spec、附加资源
 - **依赖与资源管理**：中间件定义、依赖绑定（规划中，未实现）
+
+### q-infra（基建设施部署）
+
+DevOps 基建服务的一键部署与状态监控，是 PaaS 平台的前置依赖。
+
+- **服务部署**：Jenkins（CI 构建）、Harbor（镜像仓库）、GitLab（代码托管）的自动化部署
+- **多模式支持**：Docker Compose（本地/单机）和 Kubernetes Helm（集群）两种部署方式，自动检测环境
+- **状态监控**：HTTP 健康探针 + 容器/Pod 状态检查
+- 纯配置/模板项目，通过 Makefile + Shell 脚本实现，不含独立后端服务

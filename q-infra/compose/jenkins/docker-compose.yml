@@ -1,0 +1,37 @@
+services:
+  jenkins:
+    image: ${JENKINS_IMAGE:-jenkins/jenkins:lts-jdk17}
+    container_name: q-infra-jenkins
+    restart: unless-stopped
+    ports:
+      - "${JENKINS_PORT:-8090}:8080"
+      - "${JENKINS_AGENT_PORT:-50000}:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./config/jenkins.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false -Xmx${JENKINS_MEMORY_LIMIT:-2g}
+      - CASC_JENKINS_CONFIG=/var/jenkins_home/casc_configs
+      - JENKINS_ADMIN_ID=${JENKINS_ADMIN_USER:-admin}
+      - JENKINS_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks:
+      - q-infra-net
+    deploy:
+      resources:
+        limits:
+          memory: ${JENKINS_MEMORY_LIMIT:-2g}
+
+volumes:
+  jenkins_home:
+    name: q-infra-jenkins-home
+
+networks:
+  q-infra-net:
+    name: ${COMPOSE_NETWORK:-q-infra-net}
+    external: false

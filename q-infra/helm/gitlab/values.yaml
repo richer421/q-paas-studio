@@ -1,0 +1,86 @@
+# GitLab Helm values override
+# Chart: gitlab/gitlab
+# Repo: https://charts.gitlab.io
+
+global:
+  edition: ce
+  hosts:
+    domain: example.com
+    gitlab:
+      name: gitlab.example.com
+  initialRootPassword:
+    secret: gitlab-root-password
+    key: password
+
+  ingress:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+# 禁用不需要的组件以降低资源占用
+certmanager:
+  install: false
+
+nginx-ingress:
+  enabled: false
+
+prometheus:
+  install: false
+
+grafana:
+  install: false
+
+gitlab-runner:
+  install: false
+
+gitlab:
+  webservice:
+    resources:
+      requests:
+        cpu: 300m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    minReplicas: 1
+    maxReplicas: 1
+
+  sidekiq:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    minReplicas: 1
+    maxReplicas: 1
+
+  gitaly:
+    persistence:
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+postgresql:
+  persistence:
+    size: 10Gi
+
+redis:
+  persistence:
+    size: 5Gi
+
+minio:
+  persistence:
+    size: 10Gi

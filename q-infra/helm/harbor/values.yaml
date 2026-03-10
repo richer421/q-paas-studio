@@ -1,0 +1,74 @@
+# Harbor Helm values override
+# Chart: harbor/harbor
+# Repo: https://helm.goharbor.io
+
+expose:
+  type: clusterIP
+  tls:
+    enabled: false
+  clusterIP:
+    name: harbor
+
+externalURL: http://harbor.example.com
+
+harborAdminPassword: Harbor12345
+
+persistence:
+  enabled: true
+  persistentVolumeClaim:
+    registry:
+      size: 50Gi
+    database:
+      size: 5Gi
+    redis:
+      size: 1Gi
+    jobservice:
+      jobLog:
+        size: 1Gi
+
+database:
+  type: internal
+  internal:
+    password: changeme
+
+redis:
+  type: internal
+
+core:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+portal:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+registry:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+# 按需开启
+nginx:
+  image:
+    repository: goharbor/nginx-photon
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+metrics:
+  enabled: false

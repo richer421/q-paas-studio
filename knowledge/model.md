@@ -6,7 +6,7 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| ID | uint | 主键，自增 |
+| ID | int64 | 主键，自增 |
 | CreatedAt | time.Time | 创建时间，自动填充 |
 | UpdatedAt | time.Time | 更新时间，自动填充 |
 

@@ -10,8 +10,9 @@ source "$SCRIPT_DIR/utils.sh"
 INFRA_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ============================================================
-# Helm chart 仓库映射
+# Helm chart 配置
 # ============================================================
+# DevOps 服务使用远程仓库
 declare -A HELM_REPOS=(
     [jenkins]="https://charts.jenkins.io"
     [harbor]="https://helm.goharbor.io"
@@ -23,6 +24,9 @@ declare -A HELM_CHARTS=(
     [harbor]="harbor/harbor"
     [gitlab]="gitlab/gitlab"
 )
+
+# 中间件服务使用本地 chart 目录
+MIDDLEWARE_SERVICES="mysql redis postgresql minio"
 
 # ============================================================
 # 健康检查 URL 映射
@@ -79,27 +83,46 @@ helm_deploy() {
     local namespace="${INFRA_NAMESPACE:-q-infra}"
     require_helm
 
-    local values_file="$INFRA_ROOT/helm/$service/values.yaml"
-    if [[ ! -f "$values_file" ]]; then
-        log_error "Helm values not found: $values_file"
-        return 1
+    local chart_dir="$INFRA_ROOT/helm/$service"
+    local values_file="$chart_dir/values-overrides.yaml"
+
+    # 中间件服务使用本地 chart 目录
+    if echo "$MIDDLEWARE_SERVICES" | grep -qw "$service"; then
+        if [[ ! -d "$chart_dir" ]]; then
+            log_error "Chart directory not found: $chart_dir"
+            return 1
+        fi
+        log_step "Deploying $service from local chart..."
+        kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
+        helm dependency update "$chart_dir" 2>/dev/null || true
+        helm upgrade --install "$service" "$chart_dir" \
+            ${values_file:+-f "$values_file"} \
+            -n "$namespace" \
+            --timeout 5m
+    else
+        # DevOps 服务使用本地 chart 目录 + 远程依赖
+        if [[ ! -d "$chart_dir" ]]; then
+            log_error "Chart directory not found: $chart_dir"
+            return 1
+        fi
+
+        # 添加必要的 Helm repo
+        local repo_name="${service}"
+        local repo_url="${HELM_REPOS[$service]}"
+
+        log_step "Adding Helm repo: $repo_name -> $repo_url"
+        helm repo add "$repo_name" "$repo_url" --force-update 2>/dev/null || true
+        helm repo update
+
+        log_step "Deploying $service from local chart..."
+        kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
+        helm dependency update "$chart_dir" 2>/dev/null || true
+        helm_prepare "$service"
+        helm upgrade --install "$service" "$chart_dir" \
+            ${values_file:+-f "$values_file"} \
+            -n "$namespace" \
+            --timeout 15m
     fi
-
-    local repo_name="${service}"
-    local repo_url="${HELM_REPOS[$service]}"
-    local chart="${HELM_CHARTS[$service]}"
-
-    log_step "Adding Helm repo: $repo_name -> $repo_url"
-    helm repo add "$repo_name" "$repo_url" --force-update
-    helm repo update
-
-    log_step "Deploying $service via Helm..."
-    kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
-    helm upgrade --install "q-infra-$service" "$chart" \
-        -f "$values_file" \
-        -n "$namespace" \
-        --wait \
-        --timeout 10m
 
     log_ok "$service deployed to namespace $namespace"
 }
@@ -110,8 +133,52 @@ helm_destroy() {
     require_helm
 
     log_step "Destroying $service via Helm..."
-    helm uninstall "q-infra-$service" -n "$namespace" 2>/dev/null || true
+    helm uninstall "$service" -n "$namespace" 2>/dev/null || true
     log_ok "$service destroyed from namespace $namespace"
+}
+
+# ============================================================
+# 部署前准备（创建 Secrets、数据库初始化等）
+# ============================================================
+helm_prepare() {
+    local service="$1"
+    local namespace="${INFRA_NAMESPACE:-q-infra}"
+
+    case "$service" in
+        gitlab)
+            # 创建 GitLab 所需的 Secrets
+            log_step "Preparing GitLab secrets..."
+
+            # PostgreSQL 密码
+            kubectl create secret generic gitlab-postgresql-password \
+                --from-literal=password="${POSTGRES_PASSWORD:-postgres123}" \
+                -n "$namespace" --dry-run=client -o yaml | kubectl apply -f -
+
+            # Redis 密码
+            kubectl create secret generic gitlab-redis-password \
+                --from-literal=password="${REDIS_PASSWORD:-redis123}" \
+                -n "$namespace" --dry-run=client -o yaml | kubectl apply -f -
+
+            # MinIO 连接配置
+            local minio_connection=$(cat <<EOF
+provider: AWS
+region: us-east-1
+aws_access_key_id: ${MINIO_ROOT_USER:-admin}
+aws_secret_access_key: ${MINIO_ROOT_PASSWORD:-admin123}
+endpoint: http://minio.${namespace}.svc.cluster.local:9000
+EOF
+)
+            kubectl create secret generic gitlab-objectstore-connection \
+                --from-literal=connection="$minio_connection" \
+                -n "$namespace" --dry-run=client -o yaml | kubectl apply -f -
+
+            log_ok "GitLab secrets created"
+            ;;
+        harbor)
+            # Harbor 会自动创建所需的数据库，无需额外准备
+            log_step "Harbor will use external PostgreSQL and Redis..."
+            ;;
+    esac
 }
 
 # ============================================================
@@ -126,13 +193,14 @@ Actions:
   destroy   Destroy infrastructure service(s)
 
 Options:
-  --service <name>   Target service: jenkins | harbor | gitlab | all (default: all)
+  --service <name>   Target service: jenkins|harbor|gitlab|mysql|redis|postgresql|minio|all
   --mode <mode>      Deploy mode: auto | compose | helm (default: auto)
 
 Examples:
-  $(basename "$0") deploy --service jenkins
-  $(basename "$0") deploy --service all --mode compose
+  $(basename "$0") deploy --service mysql
+  $(basename "$0") deploy --service redis --mode helm
   $(basename "$0") destroy --service harbor
+  $(basename "$0") deploy --service all
 EOF
     exit 1
 }

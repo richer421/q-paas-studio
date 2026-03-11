@@ -1,0 +1,31 @@
+# Redis 最小资源配置 - 覆盖默认 values
+# 使用方式: helm install redis ./helm/redis -f values-overrides.yaml
+
+image:
+  repository: redis
+  tag: "8.6"
+
+# 单节点模式
+architecture: standalone
+
+# 启用认证
+auth:
+  enabled: true
+  password: "redis123"
+
+# 主节点配置
+master:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 32Mi
+  persistence:
+    enabled: true
+    size: 256Mi
+
+# 禁用副本
+replica:
+  replicaCount: 0

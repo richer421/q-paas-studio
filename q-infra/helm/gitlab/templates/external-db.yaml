@@ -1,0 +1,140 @@
+# 外部 PostgreSQL 和 Redis 部署（使用 Docker Hub 官方镜像）
+# 镜像版本由用户指定，严禁使用 latest
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitlab-postgresql-password
+  namespace: gitlab
+type: Opaque
+stringData:
+  password: gitlab123
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-postgresql-pvc
+  namespace: gitlab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab-postgresql
+  namespace: gitlab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab-postgresql
+  template:
+    metadata:
+      labels:
+        app: gitlab-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:15.17
+          env:
+            - name: POSTGRES_DB
+              value: gitlabhq_production
+            - name: POSTGRES_USER
+              value: gitlab
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-postgresql-password
+                  key: password
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgresql-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: postgresql-data
+          persistentVolumeClaim:
+            claimName: gitlab-postgresql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab-postgresql
+  namespace: gitlab
+spec:
+  selector:
+    app: gitlab-postgresql
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-redis-pvc
+  namespace: gitlab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 128Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab-redis
+  namespace: gitlab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab-redis
+  template:
+    metadata:
+      labels:
+        app: gitlab-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:8.6.1
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: gitlab-redis-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab-redis
+  namespace: gitlab
+spec:
+  selector:
+    app: gitlab-redis
+  ports:
+    - port: 6379
+      targetPort: 6379

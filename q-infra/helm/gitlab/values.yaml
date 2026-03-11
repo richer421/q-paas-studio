@@ -1,35 +1,45 @@
-# GitLab Helm values override
-# Chart: gitlab/gitlab
-# Repo: https://charts.gitlab.io
+# GitLab Helm values - 禁用内置中间件，使用外部 PostgreSQL/Redis
+# 参考: https://docs.gitlab.com/charts/installation/deployment/
 
 global:
   edition: ce
   hosts:
-    domain: example.com
+    domain: localhost
     gitlab:
-      name: gitlab.example.com
+      name: localhost
+    https: false
   initialRootPassword:
     secret: gitlab-root-password
     key: password
-
   ingress:
-    enabled: false
+    configureCertmanager: false
+  shell:
+    port: 30022
+  # 外部 PostgreSQL 连接配置
+  psql:
+    host: gitlab-postgresql.gitlab.svc.cluster.local
+    port: 5432
+    database: gitlabhq_production
+    username: gitlab
+    password:
+      secret: gitlab-postgresql-password
+      key: password
+  # 外部 Redis 连接配置
+  redis:
+    host: gitlab-redis.gitlab.svc.cluster.local
+    port: 6379
+    auth:
+      enabled: false
 
-  resources:
-    requests:
-      cpu: 500m
-      memory: 2Gi
-    limits:
-      cpu: "2"
-      memory: 4Gi
-
-# 禁用不需要的组件以降低资源占用
+# 禁用 cert-manager
 certmanager:
   install: false
 
+# 禁用 nginx-ingress
 nginx-ingress:
   enabled: false
 
+# 禁用不需要的组件
 prometheus:
   install: false
 
@@ -39,48 +49,78 @@ grafana:
 gitlab-runner:
   install: false
 
+# 禁用内置 PostgreSQL（使用外部部署）
+postgresql:
+  install: false
+
+# 禁用内置 Redis（使用外部部署）
+redis:
+  install: false
+
+# GitLab 组件配置
 gitlab:
   webservice:
-    resources:
-      requests:
-        cpu: 300m
-        memory: 1Gi
-      limits:
-        cpu: "1"
-        memory: 2Gi
+    service:
+      type: NodePort
     minReplicas: 1
     maxReplicas: 1
-
-  sidekiq:
     resources:
       requests:
-        cpu: 200m
+        cpu: 100m
         memory: 512Mi
       limits:
-        cpu: "1"
+        cpu: 500m
         memory: 1Gi
+
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+
+  gitlab-shell:
+    service:
+      type: NodePort
+      nodePort: 30022
     minReplicas: 1
     maxReplicas: 1
 
   gitaly:
     persistence:
-      size: 50Gi
+      size: 256Mi
     resources:
       requests:
-        cpu: 200m
-        memory: 512Mi
+        cpu: 50m
+        memory: 128Mi
       limits:
-        cpu: "1"
-        memory: 1Gi
+        cpu: 200m
+        memory: 256Mi
 
-postgresql:
-  persistence:
-    size: 10Gi
-
-redis:
-  persistence:
-    size: 5Gi
-
+# MinIO 对象存储
 minio:
+  install: true
   persistence:
-    size: 10Gi
+    size: 256Mi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Registry
+registry:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

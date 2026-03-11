@@ -1,0 +1,5 @@
+# Helm dependency chart 缓存（helm dep update 会重新下载）
+helm/*/charts/*.tgz
+
+# 环境变量（含密码）
+.env

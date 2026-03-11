@@ -1,0 +1,49 @@
+# Jenkins 最小资源配置
+# Chart: jenkins/jenkins 5.9.4
+# 使用方式: helm install jenkins ./helm/jenkins -f values-overrides.yaml
+
+controller:
+  image:
+    repository: jenkins/jenkins
+    tag: lts-jdk17
+
+  adminUser: admin
+  adminPassword: changeme
+
+  # 最小资源配置
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  serviceType: NodePort
+  servicePort: 8080
+  nodePort: 30090
+
+  installPlugins:
+    - kubernetes:4296
+    - workflow-aggregator:600
+    - git:5.7
+    - configuration-as-code:1932
+
+  JCasC:
+    defaultConfig: true
+
+# 最小持久化存储
+persistence:
+  enabled: true
+  size: 2Gi
+
+# Agent 配置
+agent:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

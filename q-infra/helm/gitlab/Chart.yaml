@@ -1,0 +1,9 @@
+apiVersion: v2
+name: q-infra-gitlab
+description: Q-PaaS Studio GitLab (wraps official gitlab/gitlab chart)
+version: 0.1.0
+
+dependencies:
+  - name: gitlab
+    version: "9.8.6"
+    repository: https://charts.gitlab.io

@@ -1,0 +1,133 @@
+# GitLab Helm values - 使用外部中间件
+# Chart: gitlab/gitlab
+# 参考: https://docs.gitlab.com/charts/installation/deployment/
+
+global:
+  edition: ce
+  hosts:
+    domain: localhost
+    gitlab:
+      name: localhost
+    https: false
+  initialRootPassword:
+    secret: gitlab-root-password
+    key: password
+  ingress:
+    configureCertmanager: false
+  shell:
+    port: 30022
+
+  # 外部 PostgreSQL 连接配置 - 使用 q-infra 命名空间的 PostgreSQL
+  psql:
+    host: postgresql.q-infra.svc.cluster.local
+    port: 5432
+    database: gitlabhq_production
+    username: postgres
+    password:
+      secret: gitlab-postgresql-password
+      key: password
+
+  # 外部 Redis 连接配置 - 使用 q-infra 命名空间的 Redis
+  redis:
+    host: redis.q-infra.svc.cluster.local
+    port: 6379
+    auth:
+      enabled: true
+      secret: gitlab-redis-password
+      key: password
+
+  # 外部 MinIO 对象存储配置
+  appConfig:
+    object_store:
+      enabled: true
+      connection:
+        secret: gitlab-objectstore-connection
+        key: connection
+
+# 禁用 cert-manager
+certmanager:
+  install: false
+
+# 禁用 nginx-ingress
+nginx-ingress:
+  enabled: false
+
+# 禁用不需要的组件
+prometheus:
+  install: false
+
+grafana:
+  install: false
+
+gitlab-runner:
+  install: false
+
+# 禁用内置 PostgreSQL
+postgresql:
+  install: false
+
+# 禁用内置 Redis
+redis:
+  install: false
+
+# 禁用内置 MinIO
+minio:
+  install: false
+
+# GitLab 组件配置 - 最小资源
+gitlab:
+  webservice:
+    service:
+      type: NodePort
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+
+  gitlab-shell:
+    service:
+      type: NodePort
+      nodePort: 30022
+    minReplicas: 1
+    maxReplicas: 1
+
+  gitaly:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# Registry
+registry:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  storage:
+    secret: gitlab-registry-storage
+    key: config

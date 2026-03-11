@@ -25,7 +25,18 @@ log_step()  { echo -e "${CYAN}[STEP]${NC}  $*"; }
 # ============================================================
 # 已知服务列表
 # ============================================================
-ALL_SERVICES="jenkins harbor gitlab"
+# DevOps 服务
+DEVOPS_SERVICES="jenkins harbor gitlab"
+# 中间件服务
+MIDDLEWARE_SERVICES="mysql redis postgresql minio"
+# 全部服务
+ALL_SERVICES="$DEVOPS_SERVICES $MIDDLEWARE_SERVICES"
+
+# 中间件服务标志
+is_middleware() {
+    local service="$1"
+    echo "$MIDDLEWARE_SERVICES" | grep -qw "$service"
+}
 
 validate_service() {
     local service="$1"

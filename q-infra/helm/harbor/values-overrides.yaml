@@ -1,0 +1,105 @@
+# Harbor 最小资源配置 - 使用外部中间件
+# Chart: harbor/harbor 1.18.2
+# 使用方式: helm install harbor ./helm/harbor -f values-overrides.yaml
+
+expose:
+  type: nodePort
+  tls:
+    enabled: false
+  nodePort:
+    ports:
+      http:
+        nodePort: 30180
+      https:
+        nodePort: 30443
+
+externalURL: http://localhost:30180
+
+harborAdminPassword: Harbor12345
+
+# 最小资源配置
+core:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+portal:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+registry:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+registryctl:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+jobservice:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+trivy:
+  enabled: false
+
+notary:
+  enabled: false
+
+# 外部 PostgreSQL 配置 - 连接 q-infra 命名空间的 PostgreSQL
+database:
+  type: external
+  external:
+    host: "postgresql.q-infra.svc.cluster.local"
+    port: "5432"
+    username: "postgres"
+    password: "postgres123"
+    coreDatabase: "harbor_core"
+    notaryServerDatabase: "harbor_notary_server"
+    notarySignerDatabase: "harbor_notary_signer"
+
+# 外部 Redis 配置 - 连接 q-infra 命名空间的 Redis
+redis:
+  type: external
+  external:
+    addr: "redis.q-infra.svc.cluster.local:6379"
+    password: "redis123"
+
+# 最小持久化存储
+persistence:
+  enabled: true
+  resourcePolicy: "keep"
+  persistentVolumeClaim:
+    registry:
+      size: 2Gi
+      storageClass: ""
+    chartmuseum:
+      size: 1Gi
+    trivy:
+      size: 1Gi
+
+metrics:
+  enabled: false

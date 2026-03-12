@@ -19,7 +19,5 @@
 .project
 .idea/
 *.tmproj
-# img folder
-img/
-# Changelog
-CHANGELOG.md
+# OWNERS file for Kubernetes
+OWNERS

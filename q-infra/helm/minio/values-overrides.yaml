@@ -1,31 +1,28 @@
-# MinIO 最小资源配置 - 覆盖默认 values
-# 使用方式: helm install minio ./helm/minio -f values-overrides.yaml
+# MinIO 配置 - 官方 minio/minio chart
 
-image:
-  repository: minio/minio
-  tag: "RELEASE.2025-09-07T16-13-09Z-cpuv1"
-
-# 单节点模式
 mode: standalone
 
-# 认证配置
-auth:
-  rootUser: "admin"
-  rootPassword: "admin123"
+image:
+  repository: quay.io/minio/minio
+  tag: RELEASE.2024-12-18T13-15-44Z
+  pullPolicy: IfNotPresent
 
-# 最小资源配置
-resources:
-  limits:
-    cpu: 500m
-    memory: 256Mi
-  requests:
-    cpu: 100m
-    memory: 64Mi
+rootUser: "admin"
+rootPassword: "admin12345"
 
-# 持久化存储
+replicas: 1
+
 persistence:
   enabled: true
-  size: 2Gi
+  size: 10Gi
 
-# 默认 buckets - GitLab 和 Harbor 所需
-defaultBuckets: "gitlab-lfs,gitlab-artifacts,gitlab-uploads,gitlab-packages,gitlab-registry,harbor"
+resources:
+  limits:
+    cpu: "1"
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+minioAPIPort: "9000"
+minioConsolePort: "9001"

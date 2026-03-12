@@ -1,30 +1,38 @@
-# MySQL 最小资源配置 - 覆盖默认 values
-# 使用方式: helm install mysql ./helm/mysql -f values-overrides.yaml
+# MySQL 8.0 配置 - groundhog2k/mysql chart
+# 使用官方 MySQL 8.0 镜像
 
 image:
-  repository: mysql
-  tag: "8.0.45-debian"
+  registry: "docker.io"
+  repository: "mysql"
+  tag: "8.0"
+  pullPolicy: IfNotPresent
 
-auth:
-  rootPassword: "root123"
-  database: "appdb"
+# 数据库配置
+settings:
+  rootPassword:
+    value: root123
+
+userDatabase:
+  name:
+    value: appdb
+  user:
+    value: appuser
+  password:
+    value: apppass123
+
+# 资源限制 - 优化配置确保丝滑部署
+resources:
+  limits:
+    cpu: "1"
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+# 持久化存储
+storage:
+  className: ""
+  requestedSize: 5Gi
 
 # 单节点模式
-architecture: standalone
-
-# 最小资源配置
-primary:
-  resources:
-    limits:
-      cpu: 500m
-      memory: 512Mi
-    requests:
-      cpu: 100m
-      memory: 128Mi
-  persistence:
-    enabled: true
-    size: 1Gi
-
-# 禁用从节点
-secondary:
-  replicaCount: 0
+replicaCount: 1

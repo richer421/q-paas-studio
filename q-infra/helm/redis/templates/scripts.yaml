@@ -1,0 +1,215 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis.fullname" . }}-scripts
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+data:
+  init.sh: |
+    #!/bin/sh
+    REDIS_CONFIG=/data/conf/redis.conf
+    SENTINEL_CONFIG=/data/conf/sentinel.conf
+    # Clean up old init logs or print them
+    cleanup_log() {
+  {{- if not .Values.haMode.keepOldLogs }}
+      rm -f /data/init.log
+  {{- end }}
+      if [ -f "/data/init.log" ]; then
+        echo "Detected restart of this instance ($HOSTNAME)"
+        echo "## This was the previous log:"
+        cat /data/init.log
+        echo "## End of previous log"
+      fi
+    }
+
+    # Log a message during initialization phase
+    # $1 - the log message
+    log() {
+      echo "$(date) $1"
+      echo "$(date) $1" >>/data/init.log
+    }
+
+    # Creating redis base configuration
+    configure_redis_base() {
+      log "Creating redis base configuration"
+      mkdir -p /data/conf
+      rm -f $REDIS_CONFIG
+
+      log "Setting redis server defaults"
+      echo "port 6379" >>$REDIS_CONFIG
+      echo "protected-mode no" >>$REDIS_CONFIG
+      echo "bind 0.0.0.0" >>$REDIS_CONFIG
+      echo "dir /data" >>$REDIS_CONFIG
+      {{- if .Values.haMode.useDnsNames }}
+      echo "replica-announce-ip ${HOSTNAME}.{{ include "redis.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}" >>$REDIS_CONFIG
+      {{ else }}
+      THISIP="$(getent hosts $HOSTNAME | awk '{ print $1 }')"
+      echo "replica-announce-ip ${THISIP}" >>$REDIS_CONFIG
+      {{- end }}
+      log "Finished creating base configuration"
+    }
+
+    configure_redis_ext() {
+      log "Setting extended redis configuration"
+      if [ -f /usr/local/etc/redis/redis.conf ]; then
+          log "Adding optional redis configuration"
+          cat /usr/local/etc/redis/redis.conf >>$REDIS_CONFIG
+      fi
+      if [ -d /extraredisconfigs ]; then
+        log "Adding extra redis configs to redis configuration"
+        cat /extraredisconfigs/* >>$REDIS_CONFIG
+      fi
+    }
+
+    test_master_alive() {
+      TEST="$(timeout {{ .Values.haMode.masterAliveTestTimeout }}s redis-cli -h $MASTER -p 6379 $REDISUSER $REDISPWD ping)"
+      if [ -z "$TEST" ]; then
+        log "Master is not alive"
+        return 1
+      fi
+      log "Master is alive"
+      return 0
+    }
+
+    test_valid_dns() {
+      KNOWN_HOSTS="$(getent hosts {{ include "redis.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }} | awk '{ print $1 }')"
+      log "## Known hosts for headless service {{ include "redis.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:"
+      for AHOSTIP in $KNOWN_HOSTS; do
+        AHOSTNAME=$(getent hosts $AHOSTIP | awk '{print $2}')
+        log "${AHOSTIP} ${AHOSTNAME}"
+      done
+      log "#####"
+      {{- if .Values.haMode.useDnsNames }}
+      MASTERENTRY="$(getent hosts $MASTER | awk '{ print $2 }')"
+      {{- else }}
+      MASTERENTRY="$(getent hosts $MASTER | awk '{ print $1 }')"
+      {{- end }}
+    }
+
+    configure_sentinel() {
+      log "Configuring sentinel server..."
+      if [ -z "$MASTER" ]; then
+        {{- if .Values.haMode.useDnsNames }}
+        MASTER=${HOSTNAME}.{{ include "redis.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+        {{- else }}
+        MASTER="$(getent hosts $HOSTNAME | awk '{ print $1 }')"
+        {{- end }}
+        log "No master found - Configuring sentinel for master $HOSTNAME with address $MASTER"
+        echo "sentinel monitor {{ include "redis.masterGroupName" . }} $MASTER 6379 {{ .Values.haMode.quorum }}" >>$SENTINEL_CONFIG
+      else
+        log "Redis master was found - Configuring sentinel for master address $MASTER"
+        echo "sentinel monitor {{ include "redis.masterGroupName" . }} $MASTER 6379 {{ .Values.haMode.quorum }}" >>$SENTINEL_CONFIG
+      fi
+      {{- if .Values.haMode.useDnsNames }}
+      echo "SENTINEL resolve-hostnames yes" >>$SENTINEL_CONFIG
+      echo "SENTINEL announce-hostnames yes" >>$SENTINEL_CONFIG
+      echo "SENTINEL announce-ip ${HOSTNAME}.{{ include "redis.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}" >>$SENTINEL_CONFIG
+      {{- end }}
+      echo "sentinel down-after-milliseconds {{ include "redis.masterGroupName" . }} {{ .Values.haMode.downAfterMilliseconds }}" >>$SENTINEL_CONFIG
+      echo "sentinel failover-timeout {{ include "redis.masterGroupName" . }} {{ .Values.haMode.failoverTimeout }}" >>$SENTINEL_CONFIG
+    }
+
+    configure_sentinel_ext() {
+      log "Setting extended sentinel configuration"
+      if [ -f /usr/local/etc/redis/sentinel.conf ]; then
+          log "Adding optional sentinel configuration settings"
+          cat /usr/local/etc/redis/sentinel.conf >>$SENTINEL_CONFIG
+      fi
+      if [ -d /extrasentinelconfigs ]; then
+        log "Adding extra sentinel configs to sentinel configuration"
+        cat /extrasentinelconfigs/* >>$SENTINEL_CONFIG
+      fi
+      log "Configuring sentinel server finished."
+    }
+
+    configure_redis_cluster() {
+      log "Determining authentication parameters"
+      if [ -f $REDIS_CONFIG ]; then
+        REDISUSER=$(cat $REDIS_CONFIG | grep masteruser | awk '{ print $2 }')
+        if [ -n "$REDISUSER" ]; then
+          REDISUSER="--user $REDISUSER"
+        fi
+        REDISPWD=$(cat $REDIS_CONFIG | grep masterauth | awk '{ print $2 }')
+        if [ -n "$REDISPWD" ]; then
+          REDISPWD="--pass $REDISPWD"
+        fi
+      fi
+      if [ -f $SENTINEL_CONFIG ]; then
+        SENTINELUSER=$(cat $SENTINEL_CONFIG | grep "sentinel sentinel-user" | awk '{ print $3 }')
+        if [ -n "$SENTINELUSER" ]; then
+          SENTINELUSER="--user $SENTINELUSER"
+        fi
+        SENTINELPWD=$(cat $SENTINEL_CONFIG | grep "sentinel sentinel-pass" | awk '{ print $3 }')
+        if [ -n "$SENTINELPWD" ]; then
+          SENTINELPWD="--pass $SENTINELPWD"
+        fi
+      fi
+      log "Try to resolve cluster service.."
+      SERVICE="$(getent hosts {{ template "redis.fullname" . }})"
+      if [ -z "$SERVICE" ]; then
+        log "Can't resolve service - Will restart after DNS failure wait"
+        sleep {{ .Values.haMode.dnsFailureWait }}
+        log "Restart"
+        exit 1
+      else
+        log "Service resolved: ${SERVICE}"
+      fi
+      log "Try to detect cluster master.."
+      MASTER="$(timeout {{ .Values.haMode.masterAliveTestTimeout }}s redis-cli -h {{ template "redis.fullname" . }} -p {{ .Values.service.sentinelPort }} $SENTINELUSER $SENTINELPWD sentinel get-master-addr-by-name {{ include "redis.masterGroupName" . }} | head -n 1)"
+      if [ -z "$MASTER" ]; then
+        log "No master found - This instance ($HOSTNAME) will be master now"
+      else
+        log "Redis master was found with address $MASTER - Checking host dns entry"
+        test_valid_dns
+        if [ -z "$MASTERENTRY" ]; then
+          log "No valid DNS entry found!"
+          if [ -f "/data/failover_restart" ]; then
+            rm /data/failover_restart
+            log "Forcing failover now"
+            redis-cli -h {{ template "redis.fullname" . }} -p {{ .Values.service.sentinelPort }} $SENTINELUSER $SENTINELPWD sentinel failover {{ include "redis.masterGroupName" . }}
+          else
+            log "Waiting for failover before restart"
+            sleep {{ .Values.haMode.failoverWait }}
+            touch /data/failover_restart
+          fi
+          log "Restart"
+          exit 1
+        else
+          MASTER=$MASTERENTRY
+          log "$MASTER has valid DNS entry"
+          log "Checking if master is alive"
+          if ! test_master_alive; then
+            if [ -f "/data/failover_restart" ]; then
+              rm /data/failover_restart
+              log "Master is still dead! - forcing failover and retry pod initialization"
+              redis-cli -h {{ template "redis.fullname" . }} -p {{ .Values.service.sentinelPort }} $SENTINELUSER $SENTINELPWD sentinel failover {{ include "redis.masterGroupName" . }}
+            else
+              log "Dead master at address $MASTER detected! - waiting for failover"
+              sleep {{ .Values.haMode.failoverWait }}
+              touch /data/failover_restart
+            fi
+            log "Restart"
+            exit 1
+          else
+            rm -f /data/failover_restart
+            log "Setting this instance ($HOSTNAME) as replicaof $MASTER"
+            echo "replicaof $MASTER 6379" >>$REDIS_CONFIG
+          fi
+        fi
+      fi
+    }
+
+    log "Creating configuration..."
+    mkdir -p /data/conf
+    cleanup_log
+    rm -f $REDIS_CONFIG
+    configure_redis_base
+    configure_redis_ext
+  {{- if .Values.haMode.enabled }}
+    log "Redis HA-mode is enabled"
+    rm -f $SENTINEL_CONFIG
+    configure_sentinel_ext
+    configure_redis_cluster
+    configure_sentinel
+  {{- end }}
+    log "Done."

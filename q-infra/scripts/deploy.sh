@@ -118,6 +118,11 @@ helm_deploy() {
         kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
         helm dependency update "$chart_dir" 2>/dev/null || true
         helm_prepare "$service"
+
+        # GitLab 使用 gitlab/gitlab 子目录
+        if [[ "$service" == "gitlab" ]]; then
+            # GitLab chart is now directly in helm/gitlab/
+        fi
         helm upgrade --install "$service" "$chart_dir" \
             ${values_file:+-f "$values_file"} \
             -n "$namespace" \

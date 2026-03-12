@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/opt/homebrew/bin/bash
 # utils.sh — 公共函数：日志输出、颜色、环境检测、等待就绪
 
 set -euo pipefail

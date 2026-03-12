@@ -1,40 +1,38 @@
-# PostgreSQL 最小资源配置 - 覆盖默认 values
-# 使用方式: helm install postgresql ./helm/postgresql -f values-overrides.yaml
+# PostgreSQL 配置 - groundhog2k/postgres chart
+# 使用官方 PostgreSQL 镜像
 
 image:
-  repository: postgres
-  tag: "15.17"
+  registry: "docker.io"
+  repository: "postgres"
+  tag: "16"
+  pullPolicy: IfNotPresent
 
-auth:
-  postgresPassword: "postgres123"
-  database: "appdb"
+# 数据库配置
+settings:
+  superuserPassword:
+    value: postgres123
+
+userDatabase:
+  name:
+    value: appdb
+  user:
+    value: appuser
+  password:
+    value: apppass123
+
+# 资源限制 - 优化配置确保丝滑部署
+resources:
+  limits:
+    cpu: "1"
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+# 持久化存储
+storage:
+  className: ""
+  requestedSize: 5Gi
 
 # 单节点模式
-architecture: standalone
-
-# 主节点配置
-primary:
-  resources:
-    limits:
-      cpu: 500m
-      memory: 256Mi
-    requests:
-      cpu: 100m
-      memory: 64Mi
-  persistence:
-    enabled: true
-    size: 1Gi
-  # 初始化脚本 - 创建 Harbor 和 GitLab 所需数据库
-  initdb:
-    scripts:
-      init-databases.sql: |
-        -- Harbor 数据库
-        CREATE DATABASE harbor_core;
-        CREATE DATABASE harbor_notary_server;
-        CREATE DATABASE harbor_notary_signer;
-        -- GitLab 数据库
-        CREATE DATABASE gitlabhq_production;
-
-# 禁用只读副本
-readReplicas:
-  replicaCount: 0
+replicaCount: 1

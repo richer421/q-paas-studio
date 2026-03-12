@@ -17,15 +17,18 @@ externalURL: http://localhost:30180
 
 harborAdminPassword: Harbor12345
 
-# 最小资源配置
+# 优化资源配置确保丝滑部署
 core:
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
+      cpu: 200m
       memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  extraEnvVars:
+    - name: POSTGRESQL_PORT
+      value: "5432"
 
 portal:
   resources:
@@ -39,11 +42,11 @@ portal:
 registry:
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
+      cpu: 200m
       memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
 
 registryctl:
   resources:
@@ -62,6 +65,9 @@ jobservice:
     limits:
       cpu: 200m
       memory: 128Mi
+  extraEnvVars:
+    - name: POSTGRESQL_PORT
+      value: "5432"
 
 trivy:
   enabled: false
@@ -86,20 +92,20 @@ redis:
   type: external
   external:
     addr: "redis.q-infra.svc.cluster.local:6379"
-    password: "redis123"
+    password: ""
 
-# 最小持久化存储
+# 持久化存储
 persistence:
   enabled: true
   resourcePolicy: "keep"
   persistentVolumeClaim:
     registry:
-      size: 2Gi
+      size: 10Gi
       storageClass: ""
     chartmuseum:
-      size: 1Gi
+      size: 5Gi
     trivy:
-      size: 1Gi
+      size: 5Gi
 
 metrics:
   enabled: false

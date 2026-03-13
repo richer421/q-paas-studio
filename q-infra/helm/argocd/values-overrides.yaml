@@ -1,0 +1,45 @@
+# ArgoCD 自定义配置 - 使用 q-infra 中间件
+
+# 全局配置
+global:
+  domain: argocd.local
+
+# 禁用内置 Redis,使用外部 Redis
+redis:
+  enabled: false
+
+# 配置外部 Redis
+externalRedis:
+  host: redis.q-infra.svc.cluster.local
+  port: 6379
+
+# Server 配置
+server:
+  replicas: 1
+  service:
+    type: NodePort
+    nodePortHttp: 30080
+    nodePortHttps: 30443
+  ingress:
+    enabled: false
+
+# Repo Server 配置
+repoServer:
+  replicas: 1
+
+# Application Controller 配置
+controller:
+  replicas: 1
+
+# Dex (SSO) 配置
+dex:
+  enabled: false
+
+# Notifications Controller
+notifications:
+  enabled: true
+
+# ApplicationSet Controller
+applicationSet:
+  enabled: true
+  replicas: 1

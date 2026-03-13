@@ -26,7 +26,7 @@ log_step()  { echo -e "${CYAN}[STEP]${NC}  $*"; }
 # 已知服务列表
 # ============================================================
 # DevOps 服务
-DEVOPS_SERVICES="jenkins harbor gitlab"
+DEVOPS_SERVICES="jenkins harbor argocd"
 # 中间件服务
 MIDDLEWARE_SERVICES="mysql redis postgresql minio"
 # 全部服务

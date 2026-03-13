@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — 通用部署脚本（检测环境、调度安装/卸载）
+# deploy.sh — Helm 部署脚本（仅支持 Kubernetes/Helm 模式）
 
 set -euo pipefail
 
@@ -16,64 +16,11 @@ INFRA_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 declare -A HELM_REPOS=(
     [jenkins]="https://charts.jenkins.io"
     [harbor]="https://helm.goharbor.io"
-    [gitlab]="https://charts.gitlab.io"
-)
-
-declare -A HELM_CHARTS=(
-    [jenkins]="jenkins/jenkins"
-    [harbor]="harbor/harbor"
-    [gitlab]="gitlab/gitlab"
+    [argocd]="https://argoproj.github.io/argo-helm"
 )
 
 # 中间件服务使用本地 chart 目录
 MIDDLEWARE_SERVICES="mysql redis postgresql minio"
-
-# ============================================================
-# 健康检查 URL 映射
-# ============================================================
-declare -A HEALTH_URLS=(
-    [jenkins]="http://localhost:${JENKINS_PORT:-8090}/login"
-    [harbor]="http://localhost:${HARBOR_PORT:-8880}/api/v2.0/health"
-    [gitlab]="http://localhost:${GITLAB_PORT:-8929}/-/readiness"
-)
-
-# ============================================================
-# Docker Compose 部署
-# ============================================================
-compose_deploy() {
-    local service="$1"
-    require_docker
-    require_docker_compose
-
-    local compose_dir="$INFRA_ROOT/compose/$service"
-    if [[ ! -f "$compose_dir/docker-compose.yml" ]]; then
-        log_error "Compose file not found: $compose_dir/docker-compose.yml"
-        return 1
-    fi
-
-    log_step "Deploying $service via Docker Compose..."
-    $COMPOSE_CMD -f "$compose_dir/docker-compose.yml" --env-file "$INFRA_ROOT/.env" up -d
-
-    log_info "Waiting for $service to become healthy..."
-    wait_for_url "${HEALTH_URLS[$service]}" 180 || true
-    log_ok "$service deployed successfully"
-}
-
-compose_destroy() {
-    local service="$1"
-    require_docker
-    require_docker_compose
-
-    local compose_dir="$INFRA_ROOT/compose/$service"
-    if [[ ! -f "$compose_dir/docker-compose.yml" ]]; then
-        log_error "Compose file not found: $compose_dir/docker-compose.yml"
-        return 1
-    fi
-
-    log_step "Destroying $service via Docker Compose..."
-    $COMPOSE_CMD -f "$compose_dir/docker-compose.yml" --env-file "$INFRA_ROOT/.env" down -v
-    log_ok "$service destroyed"
-}
 
 # ============================================================
 # Helm 部署
@@ -82,6 +29,11 @@ helm_deploy() {
     local service="$1"
     local namespace="${INFRA_NAMESPACE:-q-infra}"
     require_helm
+
+    # ArgoCD 使用独立的 namespace
+    if [[ "$service" == "argocd" ]]; then
+        namespace="argocd"
+    fi
 
     local chart_dir="$INFRA_ROOT/helm/$service"
     local values_file="$chart_dir/values-overrides.yaml"
@@ -117,12 +69,8 @@ helm_deploy() {
         log_step "Deploying $service from local chart..."
         kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
         helm dependency update "$chart_dir" 2>/dev/null || true
-        helm_prepare "$service"
+        helm_prepare "$service" "$namespace"
 
-        # GitLab 使用 gitlab/gitlab 子目录
-        if [[ "$service" == "gitlab" ]]; then
-            # GitLab chart is now directly in helm/gitlab/
-        fi
         helm upgrade --install "$service" "$chart_dir" \
             ${values_file:+-f "$values_file"} \
             -n "$namespace" \
@@ -147,41 +95,26 @@ helm_destroy() {
 # ============================================================
 helm_prepare() {
     local service="$1"
-    local namespace="${INFRA_NAMESPACE:-q-infra}"
+    local namespace="${2:-${INFRA_NAMESPACE:-q-infra}}"
 
     case "$service" in
-        gitlab)
-            # 创建 GitLab 所需的 Secrets
-            log_step "Preparing GitLab secrets..."
-
-            # PostgreSQL 密码
-            kubectl create secret generic gitlab-postgresql-password \
-                --from-literal=password="${POSTGRES_PASSWORD:-postgres123}" \
-                -n "$namespace" --dry-run=client -o yaml | kubectl apply -f -
-
-            # Redis 密码
-            kubectl create secret generic gitlab-redis-password \
-                --from-literal=password="${REDIS_PASSWORD:-redis123}" \
-                -n "$namespace" --dry-run=client -o yaml | kubectl apply -f -
-
-            # MinIO 连接配置
-            local minio_connection=$(cat <<EOF
-provider: AWS
-region: us-east-1
-aws_access_key_id: ${MINIO_ROOT_USER:-admin}
-aws_secret_access_key: ${MINIO_ROOT_PASSWORD:-admin123}
-endpoint: http://minio.${namespace}.svc.cluster.local:9000
-EOF
-)
-            kubectl create secret generic gitlab-objectstore-connection \
-                --from-literal=connection="$minio_connection" \
-                -n "$namespace" --dry-run=client -o yaml | kubectl apply -f -
-
-            log_ok "GitLab secrets created"
+        argocd)
+            log_step "ArgoCD will be deployed to namespace: $namespace"
             ;;
         harbor)
-            # Harbor 会自动创建所需的数据库，无需额外准备
-            log_step "Harbor will use external PostgreSQL and Redis..."
+            # Harbor 需要在 PostgreSQL 中创建专用数据库
+            log_step "Preparing Harbor databases in PostgreSQL..."
+
+            # 等待 PostgreSQL 就绪
+            kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgres -n q-infra --timeout=60s 2>/dev/null || true
+
+            # 创建 Harbor 所需的数据库（如果不存在）
+            for db in harbor_core harbor_notary_server harbor_notary_signer; do
+                kubectl exec -n q-infra postgresql-0 -- psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
+                kubectl exec -n q-infra postgresql-0 -- psql -U postgres -c "CREATE DATABASE $db;" 2>/dev/null || true
+            done
+
+            log_ok "Harbor databases prepared"
             ;;
     esac
 }
@@ -198,12 +131,11 @@ Actions:
   destroy   Destroy infrastructure service(s)
 
 Options:
-  --service <name>   Target service: jenkins|harbor|gitlab|mysql|redis|postgresql|minio|all
-  --mode <mode>      Deploy mode: auto | compose | helm (default: auto)
+  --service <name>   Target service: jenkins|harbor|argocd|mysql|redis|postgresql|minio|all
 
 Examples:
   $(basename "$0") deploy --service mysql
-  $(basename "$0") deploy --service redis --mode helm
+  $(basename "$0") deploy --service redis
   $(basename "$0") destroy --service harbor
   $(basename "$0") deploy --service all
 EOF
@@ -215,12 +147,11 @@ main() {
     shift || true
 
     local service="all"
-    local mode="${DEPLOY_MODE:-auto}"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --service) service="$2"; shift 2 ;;
-            --mode)    mode="$2";    shift 2 ;;
+            --mode)    shift 2 ;;  # 忽略 mode 参数，仅支持 helm
             *)         log_error "Unknown option: $1"; usage ;;
         esac
     done
@@ -229,17 +160,6 @@ main() {
 
     # 加载环境变量
     load_env "$INFRA_ROOT"
-
-    # 确定部署模式
-    if [[ "$mode" == "auto" ]]; then
-        mode="$(detect_runtime)"
-        if [[ "$mode" == "kubernetes" ]]; then
-            mode="helm"
-        else
-            mode="compose"
-        fi
-        log_info "Auto-detected mode: $mode"
-    fi
 
     # 确定服务列表
     local services
@@ -254,18 +174,10 @@ main() {
     for svc in $services; do
         case "$action" in
             deploy)
-                case "$mode" in
-                    compose) compose_deploy "$svc" ;;
-                    helm)    helm_deploy "$svc" ;;
-                    *)       log_error "Unknown mode: $mode"; exit 1 ;;
-                esac
+                helm_deploy "$svc"
                 ;;
             destroy)
-                case "$mode" in
-                    compose) compose_destroy "$svc" ;;
-                    helm)    helm_destroy "$svc" ;;
-                    *)       log_error "Unknown mode: $mode"; exit 1 ;;
-                esac
+                helm_destroy "$svc"
                 ;;
             *)
                 log_error "Unknown action: $action"

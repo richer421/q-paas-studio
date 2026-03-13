@@ -21,12 +21,12 @@ else
   _MODE_ARG :=
 endif
 
-.PHONY: infra-deploy infra-deploy-all infra-destroy infra-destroy-all infra-status infra-env infra-help
+.PHONY: infra-deploy infra-deploy-all infra-destroy infra-destroy-all infra-status infra-env infra-help infra-gitops
 
 ## 部署单个或指定服务：make infra-deploy SERVICE=jenkins [MODE=helm]
 infra-deploy:
 ifndef SERVICE
-	$(error SERVICE is required. Usage: make infra-deploy SERVICE=jenkins|harbor|gitlab)
+	$(error SERVICE is required. Usage: make infra-deploy SERVICE=jenkins|harbor|argocd)
 endif
 	@bash $(SCRIPTS)/deploy.sh deploy --service $(SERVICE) $(_MODE_ARG)
 
@@ -37,7 +37,7 @@ infra-deploy-all:
 ## 销毁单个服务：make infra-destroy SERVICE=jenkins
 infra-destroy:
 ifndef SERVICE
-	$(error SERVICE is required. Usage: make infra-destroy SERVICE=jenkins|harbor|gitlab)
+	$(error SERVICE is required. Usage: make infra-destroy SERVICE=jenkins|harbor|argocd)
 endif
 	@bash $(SCRIPTS)/deploy.sh destroy --service $(SERVICE) $(_MODE_ARG)
 
@@ -61,6 +61,10 @@ infra-env:
 	else \
 		echo ".env already exists at $(INFRA_DIR).env"; \
 	fi
+
+## 一键部署 GitOps 全流程（Jenkins + Harbor + ArgoCD）
+infra-gitops:
+	@bash $(SCRIPTS)/deploy-gitops.sh
 
 ## 显示帮助
 infra-help:

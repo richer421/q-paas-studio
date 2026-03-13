@@ -1,12 +1,16 @@
 [submodule "q-deploy"]
 	path = q-deploy
 	url = https://github.com/richer421/q-deploy.git
+	branch = main
 [submodule "q-ci"]
 	path = q-ci
 	url = https://github.com/richer421/q-ci.git
+	branch = main
 [submodule "q-workflow"]
 	path = q-workflow
 	url = https://github.com/richer421/q-workflow.git
+	branch = main
 [submodule "q-metahub"]
 	path = q-metahub
 	url = https://github.com/richer421/q-metahub.git
+	branch = main

@@ -28,3 +28,7 @@ storage:
 
 # 单节点模式
 replicaCount: 1
+
+service:
+  type: NodePort
+  nodePort: 30379

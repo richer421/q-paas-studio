@@ -7,3 +7,7 @@
 
 # Claude Code
 .claude/
+
+# Local generated assets
+q-infra/logs/
+skills/

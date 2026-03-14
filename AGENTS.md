@@ -1,0 +1,129 @@
+# Q-PaaS Studio
+
+PaaS 开发工作室（Codex 指南）
+
+## 重要提示
+
+**在明确要开发哪个模块之前，不要尝试阅读所有子模块的内容。** 这会消耗大量 token。应该先确认开发目标，再针对性地阅读相关模块。
+**一次任务默认只处理一个模块。** 如果用户没有明确模块，先问清楚再开始。
+
+## 项目结构
+
+```text
+q-paas-studio/                     # 项目根目录，所有路径基于此目录
+├── knowledge/     # 知识库（主仓库内容）
+├── q-ci/          # 持续集成服务（子模块）
+├── q-deploy/      # 部署服务（子模块）
+├── q-workflow/    # 工作流引擎服务（子模块）
+├── q-metahub/     # 元数据中心服务（子模块）
+├── q-workplatform/ # 工作平台前端（子模块）
+└── q-infra/       # 基建设施部署（主仓库目录，非子模块）
+```
+
+## 子模块远程仓库
+
+| 子模块 | 远程仓库 |
+|--------|----------|
+| q-deploy | https://github.com/richer421/q-deploy.git |
+| q-ci | https://github.com/richer421/q-ci.git |
+| q-workflow | https://github.com/richer421/q-workflow.git |
+| q-metahub | https://github.com/richer421/q-metahub.git |
+| q-workplatform | https://github.com/richer421/q-workplatform.git |
+
+说明：子模块清单以 `.gitmodules` 为准。
+
+## AI 任务输入要求（必须明确）
+
+给 Codex 下达任务时，至少包含这 4 点：
+1. 目标模块（例如：`q-deploy`）。
+2. 目标变更（修复什么/新增什么）。
+3. 验收标准（测试、接口、页面效果）。
+4. 是否允许跨模块改动（默认不允许）。
+
+## Submodule + AI 标准开发流程（强约束）
+
+```bash
+# 0) 在主仓库确认状态（若已有未提交改动，先停下来确认是否继续）
+git status --short
+git submodule status
+
+# 1) 锁定目标子模块和分支（示例）
+TARGET=q-deploy
+BRANCH=main
+ROOT_BRANCH=main
+
+# 2) 同步目标子模块到远端最新
+git submodule update --init --remote "$TARGET"
+git -C "$TARGET" fetch origin
+git -C "$TARGET" checkout "$BRANCH"
+git -C "$TARGET" pull --ff-only origin "$BRANCH"
+
+# 3) 仅在子模块内实现需求并完成验证（按模块文档执行）
+# 例如：test/lint/build
+
+# 4) 在子模块内提交并推送
+git -C "$TARGET" add -A
+git -C "$TARGET" commit -m "feat: xxx"
+git -C "$TARGET" push origin "$BRANCH"
+
+# 5) 回到主仓库提交 submodule 指针更新
+git add "$TARGET"
+git commit -m "chore: update $TARGET submodule reference"
+git push origin "$ROOT_BRANCH"
+
+# 6) 回填非-worktree主工作目录（必须执行）
+# MAIN_REPO 为你的常驻主仓库目录（非 worktree）
+MAIN_REPO=/Users/richer/richer/q-paas-studio
+git -C "$MAIN_REPO" checkout "$ROOT_BRANCH"
+git -C "$MAIN_REPO" pull --ff-only origin "$ROOT_BRANCH"
+git -C "$MAIN_REPO" submodule sync --recursive
+git -C "$MAIN_REPO" submodule update --init --recursive
+
+# 7) 收尾校验（当前仓库与 MAIN_REPO 都应无未提交变更）
+git status --short
+git submodule status
+git -C "$MAIN_REPO" status --short
+git -C "$MAIN_REPO" submodule status
+```
+
+## Worktree 场景要求（重点）
+
+在 `git worktree` 模式下，开发发生在哪个 worktree 不重要，关键是任务结束后必须回填非-worktree主工作目录。
+
+强制要求：
+1. 在工作用 worktree 完成子模块代码提交与主仓指针提交。
+2. 立即执行上面流程第 6 步，回填 `MAIN_REPO`。
+3. 以 `MAIN_REPO` 的 `status/submodule status` 结果作为“当前代码已最新”的最终依据。
+
+推荐固定别名（可选）：
+```bash
+alias qsync-main='git -C /Users/richer/richer/q-paas-studio pull --ff-only origin main && git -C /Users/richer/richer/q-paas-studio submodule sync --recursive && git -C /Users/richer/richer/q-paas-studio submodule update --init --recursive'
+```
+
+## 关键边界（避免模棱两可）
+
+1. **业务代码提交发生在子模块仓库**，不是主仓库。
+2. **主仓库只提交“子模块指针变更”**（以及必要的主仓文档/配置变更）。
+3. **不要在一次任务里混改多个子模块**，除非用户明确要求。
+4. `q-infra` 不是子模块：修改 `q-infra` 时，不需要 submodule 指针提交流程。
+5. **分支默认跟随用户指令**；用户未指定时，先确认是否使用 `main`。
+6. **主仓或子模块如果是脏工作区，先报告当前状态再继续操作**。
+7. **任务完成判定以非-worktree主工作目录（`MAIN_REPO`）为准**，不是以开发用 worktree 为准。
+
+## 知识库
+
+开发前请阅读 `knowledge/` 目录下的文档，了解项目核心概念。
+
+## 开发指南
+
+如需开发某个子模块，请先阅读该模块目录下的 `CLAUDE.md`：
+- `q-deploy/CLAUDE.md` - 部署服务开发指南
+- `q-ci/CLAUDE.md` - 持续集成服务开发指南
+- `q-workflow/CLAUDE.md` - 工作流引擎开发指南
+- `q-metahub/CLAUDE.md` - 元数据中心开发指南
+- `q-workplatform/README.md` - 工作平台开发说明（当前无 `CLAUDE.md`）
+- `q-infra/README.md` - 基建设施部署使用说明（纯配置项目，无 `CLAUDE.md`）
+
+## 提交规范
+
+使用 Conventional Commits：`feat` / `fix` / `docs` / `refactor` / `chore`

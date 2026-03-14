@@ -14,3 +14,7 @@
 	path = q-metahub
 	url = https://github.com/richer421/q-metahub.git
 	branch = main
+[submodule "q-workplatform"]
+	path = q-workplatform
+	url = https://github.com/richer421/q-workplatform.git
+	branch = main

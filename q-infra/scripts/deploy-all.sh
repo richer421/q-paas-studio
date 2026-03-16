@@ -26,7 +26,7 @@ log_info "Deployment mode: $MODE"
 echo
 
 # 部署顺序：先中间件，后应用
-MIDDLEWARE_SERVICES="postgresql redis minio mysql"
+MIDDLEWARE_SERVICES="postgresql redis minio mysql kafka"
 APP_SERVICES="gitlab jenkins harbor"
 
 # 1. 部署中间件
@@ -55,6 +55,9 @@ if [[ "$MODE" == "helm" ]]; then
 
     log_info "Waiting for MySQL..."
     kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=mysql -n q-infra --timeout=300s
+
+    log_info "Waiting for Kafka..."
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kafka -n q-infra --timeout=300s
 
     log_ok "All middleware services are ready!"
     echo
@@ -91,6 +94,7 @@ if [[ "$MODE" == "helm" ]]; then
     GITLAB_PORT=$(kubectl get svc -n q-infra gitlab-webservice-default -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "N/A")
     JENKINS_PORT=$(kubectl get svc -n q-infra jenkins -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "N/A")
     HARBOR_PORT=$(kubectl get svc -n q-infra harbor-core -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "N/A")
+    KAFKA_PORT=$(kubectl get svc -n q-infra kafka-controller-0-external -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "30092")
 
     echo "GitLab:  http://localhost:${GITLAB_PORT}"
     echo "  - Username: root"
@@ -103,6 +107,8 @@ if [[ "$MODE" == "helm" ]]; then
     echo "Harbor:  http://localhost:${HARBOR_PORT}"
     echo "  - Username: admin"
     echo "  - Password: Harbor12345"
+    echo
+    echo "Kafka:   localhost:${KAFKA_PORT}"
     echo
 fi
 

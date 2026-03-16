@@ -20,7 +20,7 @@ declare -A HELM_REPOS=(
 )
 
 # 中间件服务使用本地 chart 目录
-MIDDLEWARE_SERVICES="mysql redis postgresql minio"
+MIDDLEWARE_SERVICES="mysql redis postgresql minio kafka"
 
 # ============================================================
 # Helm 部署
@@ -131,11 +131,12 @@ Actions:
   destroy   Destroy infrastructure service(s)
 
 Options:
-  --service <name>   Target service: jenkins|harbor|argocd|mysql|redis|postgresql|minio|all
+  --service <name>   Target service: jenkins|harbor|argocd|mysql|redis|postgresql|minio|kafka|all
 
 Examples:
   $(basename "$0") deploy --service mysql
   $(basename "$0") deploy --service redis
+  $(basename "$0") deploy --service kafka
   $(basename "$0") destroy --service harbor
   $(basename "$0") deploy --service all
 EOF

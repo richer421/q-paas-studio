@@ -12,7 +12,7 @@ log_step "=========================================="
 log_step "GitOps 全流程部署"
 log_step "=========================================="
 log_info "组件: Jenkins + Harbor + ArgoCD"
-log_info "中间件: MySQL + Redis + PostgreSQL"
+log_info "中间件: MySQL + Redis + PostgreSQL + Kafka"
 log_step "=========================================="
 
 # 加载环境变量
@@ -21,8 +21,8 @@ load_env "$INFRA_ROOT"
 # 检查 Kubernetes 集群
 require_helm
 
-log_step "Step 1/3: 部署中间件（MySQL + Redis + PostgreSQL）"
-for middleware in mysql redis postgresql; do
+log_step "Step 1/3: 部署中间件（MySQL + Redis + PostgreSQL + Kafka）"
+for middleware in mysql redis postgresql kafka; do
     log_info "Deploying $middleware..."
     bash "$SCRIPT_DIR/deploy.sh" deploy --service "$middleware" || {
         log_error "Failed to deploy $middleware"

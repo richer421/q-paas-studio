@@ -26,7 +26,7 @@ endif
 ## 部署单个或指定服务：make infra-deploy SERVICE=jenkins [MODE=helm]
 infra-deploy:
 ifndef SERVICE
-	$(error SERVICE is required. Usage: make infra-deploy SERVICE=jenkins|harbor|argocd)
+	$(error SERVICE is required. Usage: make infra-deploy SERVICE=jenkins|harbor|argocd|mysql|redis|postgresql|minio|kafka)
 endif
 	@bash $(SCRIPTS)/deploy.sh deploy --service $(SERVICE) $(_MODE_ARG)
 
@@ -37,7 +37,7 @@ infra-deploy-all:
 ## 销毁单个服务：make infra-destroy SERVICE=jenkins
 infra-destroy:
 ifndef SERVICE
-	$(error SERVICE is required. Usage: make infra-destroy SERVICE=jenkins|harbor|argocd)
+	$(error SERVICE is required. Usage: make infra-destroy SERVICE=jenkins|harbor|argocd|mysql|redis|postgresql|minio|kafka)
 endif
 	@bash $(SCRIPTS)/deploy.sh destroy --service $(SERVICE) $(_MODE_ARG)
 
@@ -73,7 +73,7 @@ infra-help:
 	@echo "================================="
 	@echo ""
 	@echo "  make infra-env                          Initialize .env from template"
-	@echo "  make infra-deploy SERVICE=<name>        Deploy a service (jenkins|harbor|gitlab)"
+	@echo "  make infra-deploy SERVICE=<name>        Deploy a service (jenkins|harbor|argocd|mysql|redis|postgresql|minio|kafka)"
 	@echo "  make infra-deploy-all                   Deploy all infrastructure services"
 	@echo "  make infra-status                       Check all services status"
 	@echo "  make infra-status SERVICE=<name>        Check single service status"

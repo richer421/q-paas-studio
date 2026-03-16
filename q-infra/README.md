@@ -1,6 +1,6 @@
 # Q-PaaS Infrastructure (q-infra)
 
-DevOps 基建设施部署模块，用于快速部署 Jenkins、Harbor、GitLab 等 PaaS 平台前置依赖服务，以及 MySQL、Redis、PostgreSQL、MinIO 等中间件服务。
+DevOps 基建设施部署模块，用于快速部署 Jenkins、Harbor、GitLab 等 PaaS 平台前置依赖服务，以及 MySQL、Redis、PostgreSQL、MinIO、Kafka 等中间件服务。
 
 支持 Docker Compose 和 Kubernetes（Helm）两种部署方式，通过 Makefile + Shell 脚本实现一键部署和状态监控。
 
@@ -26,6 +26,7 @@ make infra-status
 # 部署单个服务
 make infra-deploy SERVICE=mysql              # 部署 MySQL
 make infra-deploy SERVICE=redis              # 部署 Redis
+make infra-deploy SERVICE=kafka              # 部署 Kafka
 make infra-deploy SERVICE=gitlab             # 部署 GitLab
 
 # 查看状态
@@ -55,6 +56,7 @@ make infra-destroy-all                       # 销毁全部
 | Redis | 1Gi | 缓存/消息队列 | 256Mi-512Mi / 200m-1CPU |
 | PostgreSQL | 5Gi | 关系型数据库 | 512Mi-1Gi / 250m-1CPU |
 | MinIO | 10Gi | 对象存储 | 512Mi-1Gi / 250m-1CPU |
+| Kafka | 5Gi | 事件流/消息总线 | 512Mi-1Gi / 250m-1CPU |
 
 ## 目录结构
 
@@ -74,7 +76,8 @@ q-infra/
 │   ├── mysql/            # groundhog2k MySQL Chart
 │   ├── redis/            # groundhog2k Redis Chart
 │   ├── postgresql/       # groundhog2k PostgreSQL Chart
-│   └── minio/            # Official MinIO Chart
+│   ├── minio/            # Official MinIO Chart
+│   └── kafka/            # Bitnami Kafka Chart
 ├── compose/              # Docker Compose 配置
 │   ├── jenkins/
 │   ├── harbor/
@@ -87,7 +90,8 @@ q-infra/
     ├── mysql.env.example
     ├── redis.env.example
     ├── postgresql.env.example
-    └── minio.env.example
+    ├── minio.env.example
+    └── kafka.env.example
 ```
 
 ## 部署模式
@@ -127,6 +131,9 @@ make infra-deploy SERVICE=jenkins MODE=compose # 强制 Compose
 | `POSTGRES_DATABASE` | appdb | PostgreSQL 默认数据库 |
 | `MINIO_ROOT_USER` | admin | MinIO 管理员用户名 |
 | `MINIO_ROOT_PASSWORD` | admin123 | MinIO 管理员密码 |
+| `KAFKA_NODEPORT` | 30092 | Kafka NodePort（本机访问） |
+| `KAFKA_CLUSTER_HOST` | kafka.q-infra.svc.cluster.local | Kafka 集群内访问域名 |
+| `KAFKA_CLUSTER_PORT` | 9092 | Kafka 集群内访问端口 |
 
 更多配置项见各服务的 `env/<service>.env.example`。
 
@@ -143,7 +150,7 @@ make infra-deploy SERVICE=jenkins MODE=compose # 强制 Compose
 
 一键部署脚本会按照以下顺序部署：
 
-1. **中间件服务**: PostgreSQL → Redis → MinIO → MySQL
+1. **中间件服务**: PostgreSQL → Redis → MinIO → MySQL → Kafka
 2. **等待就绪**: 确保所有中间件服务完全启动
 3. **应用服务**: GitLab → Jenkins → Harbor
 
@@ -176,6 +183,7 @@ make infra-deploy SERVICE=gitlab
 | Redis | groundhog2k/redis | https://groundhog2k.github.io/helm-charts |
 | PostgreSQL | groundhog2k/postgres | https://groundhog2k.github.io/helm-charts |
 | MinIO | minio/minio | https://charts.min.io |
+| Kafka | bitnami/kafka | https://charts.bitnami.com/bitnami |
 
 DevOps 服务使用官方 Chart：
 

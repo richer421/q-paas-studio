@@ -28,7 +28,7 @@ log_step()  { echo -e "${CYAN}[STEP]${NC}  $*"; }
 # DevOps 服务
 DEVOPS_SERVICES="jenkins harbor argocd"
 # 中间件服务
-MIDDLEWARE_SERVICES="mysql redis postgresql minio"
+MIDDLEWARE_SERVICES="mysql redis postgresql minio kafka"
 # 全部服务
 ALL_SERVICES="$DEVOPS_SERVICES $MIDDLEWARE_SERVICES"
 

@@ -26,7 +26,7 @@ for service in gitlab jenkins harbor; do
 done
 
 # 卸载中间件
-for service in mysql minio redis postgresql; do
+for service in mysql minio redis postgresql kafka; do
     log_info "卸载 $service..."
     "$SCRIPT_DIR/deploy.sh" destroy --service "$service" --mode helm 2>/dev/null || true
 done
@@ -47,7 +47,7 @@ echo
 # ============================================================
 log_step "阶段 2: 部署中间件服务"
 
-for service in postgresql redis minio mysql; do
+for service in postgresql redis minio mysql kafka; do
     log_info "部署 $service..."
     "$SCRIPT_DIR/deploy.sh" deploy --service "$service" --mode helm
     echo
@@ -58,6 +58,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgres -n "$N
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=redis -n "$NAMESPACE" --timeout=300s
 kubectl wait --for=condition=ready pod -l app=minio -n "$NAMESPACE" --timeout=300s
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=mysql -n "$NAMESPACE" --timeout=300s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kafka -n "$NAMESPACE" --timeout=300s
 
 log_ok "中间件部署完成"
 echo
@@ -143,7 +144,7 @@ for service in gitlab jenkins harbor; do
 done
 
 # 卸载中间件
-for service in mysql minio redis postgresql; do
+for service in mysql minio redis postgresql kafka; do
     log_info "卸载 $service..."
     "$SCRIPT_DIR/deploy.sh" destroy --service "$service" --mode helm
 done

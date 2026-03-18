@@ -141,6 +141,24 @@ alias qsync-main='git -C /Users/richer/richer/q-paas-studio pull --ff-only origi
 - `q-devops-platform/README.md` - DevOps 平台前端开发说明
 - `q-infra/README.md` - 基建设施部署使用说明（纯配置项目，无 `CLAUDE.md`）
 
+## 前端验收与测试策略
+
+针对 `q-devops-platform`，默认按下面的优先级执行：
+
+1. **业务流程或交互链路改动**：优先通过浏览器自动化 skill（Midscene）做真实页面验收，而不是先补低价值的 UI 测试。
+2. **小型 UI 微调**：如果只是间距、文案、颜色、布局等轻量视觉改动，默认由用户在页面上直接确认，不强制补测试代码。
+3. **保留自动化测试的场景**：仅在逻辑复杂、容易回归、且可以稳定低成本维护时再补前端测试。
+
+明确禁止：
+
+- 不要为了“看起来有测试”去补只会重复 DOM 结构或样式细节的无意义测试。
+- 不要把浏览器真实验收本可以覆盖的前端联调链路，硬塞成脆弱的组件测试。
+
+执行要求：
+
+- 若通过 Midscene 做验收，完成后要把关键步骤、结果、截图/报告路径一并反馈给用户。
+- 若判定为“小型 UI 微调”，直接说明“请用户页面确认”，不要额外制造测试负担。
+
 ## 提交规范
 
 使用 Conventional Commits：`feat` / `fix` / `docs` / `refactor` / `chore`

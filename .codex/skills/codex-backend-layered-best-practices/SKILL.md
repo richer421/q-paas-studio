@@ -1,6 +1,6 @@
 ---
 name: codex-backend-layered-best-practices
-description: Use when backend development is driven by Codex and the task requires clear app/domain layering, business orchestration boundaries, and consistent implementation flow in service modules.
+description: Use when doing backend development tasks in this repository, including feature work, bugfixes, refactors, and service integration, so app/domain layering and business orchestration boundaries are always applied.
 ---
 
 # Codex Backend Layered Best Practices

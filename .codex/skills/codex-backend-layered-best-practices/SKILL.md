@@ -113,6 +113,44 @@ func (s *service) Create(ctx context.Context, cmd CreateCommand) (*Aggregate, er
 }
 ```
 
+## 全局初始化与命名风格
+
+1. 组合根唯一：
+依赖组装统一放在启动入口（如 `cmd/*/main.go`、`internal/bootstrap`、`internal/wire`），不要分散到路由层。
+2. 命名语义统一：
+初始化函数使用可读动词：`NewXxx`（构造对象）、`InitXxx`（初始化资源）、`BuildXxx`（组装聚合对象）、`RegisterXxxRoutes`（注册路由）。
+3. 路由层只做装配：
+路由层只接收已构造好的 handler 并注册路径，不负责创建 handler 依赖。
+4. 禁止项：
+禁止在路由注册文件里直接 `new handler` 或隐式 new service/repo。
+
+反例（禁止）：
+
+```go
+func RegisterRoutes(r *gin.Engine) {
+	h := handler.NewOrderHandler() // 路由层直接 new，禁止
+	r.POST("/orders", h.Create)
+}
+```
+
+正例（推荐）：
+
+```go
+func BuildHTTPServer(db *sql.DB) *gin.Engine {
+	repo := orderrepo.New(db)
+	svc := order.NewService(repo)
+	h := handler.NewOrderHandler(svc)
+
+	r := gin.New()
+	RegisterOrderRoutes(r, h)
+	return r
+}
+
+func RegisterOrderRoutes(r *gin.Engine, h *handler.OrderHandler) {
+	r.POST("/orders", h.Create)
+}
+```
+
 ## Open Model 暴露规范
 
 1. 对外模型集中维护：

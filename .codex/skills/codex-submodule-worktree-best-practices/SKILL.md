@@ -1,9 +1,9 @@
 ---
-name: submodule-worktree-release-guard
-description: Use when working on q-paas-studio tasks that involve submodule + worktree delivery, integration branches, "update all modules", or any request that must guarantee each submodule is merged to origin/main, root pointers are pushed, and MAIN_REPO is fully backfilled.
+name: codex-submodule-worktree-best-practices
+description: Use when development is driven by Codex, the repository is organized with git submodules, and branch development is executed through git worktree.
 ---
 
-# Submodule Worktree Release Guard
+# Codex Submodule Worktree Best Practices
 
 ## Overview
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "codex场景下的submodule&worktree工作模式最佳实践 skill"
+  short_description: "Codex + submodule + worktree 场景下的标准交付闭环。"
+  default_prompt: "Use this skill when Codex drives a submodule-based repository with worktree branch development, and enforce end-to-end merge, pointer update, and MAIN_REPO verification."

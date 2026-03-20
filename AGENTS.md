@@ -285,7 +285,7 @@ git -C "$TARGET" checkout -b "$BRANCH"
 - 主仓指针更新与 MAIN_REPO 回填
 
 本地 skill 路径：
-- `.codex/skills/submodule-worktree-release-guard/SKILL.md`
+- `.codex/skills/codex-submodule-worktree-best-practices/SKILL.md`
 
 约束：
 - 优先使用项目内 skill，不要退回全局同名/近似 skill。

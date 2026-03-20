@@ -17,5 +17,5 @@ worktrees/
 # Keep project-local Codex skills in repo
 !.codex/
 !.codex/skills/
-!.codex/skills/submodule-worktree-release-guard/
-!.codex/skills/submodule-worktree-release-guard/**
+!.codex/skills/codex-submodule-worktree-best-practices/
+!.codex/skills/codex-submodule-worktree-best-practices/**

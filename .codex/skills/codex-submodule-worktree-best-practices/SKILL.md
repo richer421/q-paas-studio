@@ -9,7 +9,8 @@ description: Use when development is driven by Codex, the repository is organize
 
 1. 主项目：真实开发项目（非 worktree 常驻目录）。
 2. worktree 项目：从主项目切出的工作副本，用于某个需求的隔离开发。
-3. 子模块：主项目中的业务模块仓库（`q-ci`、`q-deploy`、`q-workflow`、`q-metahub`、`q-devops-platform`）。
+3. 子模块：主项目中通过 git submodule 管理的模块集合，以主仓 `.gitmodules` 为准，不硬编码模块名单。
+4. 非子模块目录：如 `q-infra` 属于主仓普通目录，不走 submodule 指针提交流程。
 
 ## 规则
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "后端分层最佳实践 skill"
+  short_description: "Codex 后端 app/domain 分层开发与落地规范。"
+  default_prompt: "Use this skill for backend development in Codex-driven projects to enforce app/domain layering boundaries and implementation flow."

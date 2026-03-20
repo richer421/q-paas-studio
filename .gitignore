@@ -19,3 +19,5 @@ worktrees/
 !.codex/skills/
 !.codex/skills/codex-submodule-worktree-best-practices/
 !.codex/skills/codex-submodule-worktree-best-practices/**
+!.codex/skills/codex-backend-layered-best-practices/
+!.codex/skills/codex-backend-layered-best-practices/**

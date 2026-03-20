@@ -37,6 +37,31 @@ app 依赖 domain；domain 不反向依赖 app 的流程编排细节。
 5. 错误语义：
 对外错误信息保持业务可读；底层错误按需要包装，不泄漏无关实现细节。
 
+项目中立示例（仅示意结构）：
+
+```go
+package app
+
+import (
+	"context"
+	"example/internal/domain/order"
+)
+
+type App struct {
+	orderSvc order.Service
+}
+
+func (a *App) CreateOrder(ctx context.Context, req CreateOrderReq) (*OrderDTO, error) {
+	cmd := toCreateOrderCommand(req)        // DTO -> domain command
+	agg, err := a.orderSvc.Create(ctx, cmd) // 编排调用 domain
+	if err != nil {
+		return nil, wrapBizErr(err)
+	}
+	out := toOrderDTO(agg) // domain -> DTO
+	return &out, nil
+}
+```
+
 ## domain 层代码风格
 
 1. 先抽象再实现：
@@ -49,6 +74,44 @@ app 依赖 domain；domain 不反向依赖 app 的流程编排细节。
 Git、仓储、外部系统通过接口注入（如 `GitClient`、`ReleaseRepo`），实现可替换、可测试。
 5. 默认实现可回退：
 允许在构造函数中提供合理默认实现，但不破坏依赖注入边界。
+
+项目中立示例（仅示意结构）：
+
+```go
+package order
+
+import "context"
+
+type Repository interface {
+	Save(ctx context.Context, agg *Aggregate) error
+}
+
+type Service interface {
+	Create(ctx context.Context, cmd CreateCommand) (*Aggregate, error)
+}
+
+type service struct {
+	repo Repository
+}
+
+func NewService(repo Repository) Service {
+	return &service{repo: repo}
+}
+
+func (s *service) Create(ctx context.Context, cmd CreateCommand) (*Aggregate, error) {
+	if err := validateCreate(cmd); err != nil {
+		return nil, err
+	}
+	agg, err := buildAggregate(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.Save(ctx, agg); err != nil {
+		return nil, err
+	}
+	return agg, nil
+}
+```
 
 ## Open Model 暴露规范
 

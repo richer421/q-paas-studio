@@ -5,126 +5,38 @@ description: Use when development is driven by Codex, the repository is organize
 
 # Codex Submodule Worktree Best Practices
 
-## Overview
+## 基本概念
 
-Use this skill to avoid false completion in q-paas-studio release flows.
-It enforces an evidence-first sequence: discover branch reality per module, merge the right branches, push remote mains, update root submodule pointers, and verify MAIN_REPO consistency before claiming done.
+1. 主项目：真实开发项目（非 worktree 常驻目录）。
+2. worktree 项目：从主项目切出的工作副本，用于某个需求的隔离开发。
+3. 子模块：主项目中的业务模块仓库（`q-ci`、`q-deploy`、`q-workflow`、`q-metahub`、`q-devops-platform`）。
 
-## Required Inputs
+## 规则
 
-Before execution, lock these inputs:
+1. 分支统一：
+主仓库和所有参与开发的子模块，必须使用同一个需求分支名，例如 `feat/xxx需求-20250320`。
+2. 分支来源统一：
+无论主仓库还是子模块，创建需求分支前都必须先同步并基于各自 `origin/main` 切出。
+3. 新增模块同规则：
+开发中途新增子模块时，也必须先从该模块 `origin/main` 切出同名需求分支。
+4. 提交/推送与合并分离：
+用户只说“提交、推送”时，只提交并推送当前需求分支，不主动合并 `main`。
+5. 合并由用户触发：
+只有用户明确说“合并 main 分支”时，才执行主仓库和相关子模块的 `main` 合并流程。
+6. 合并后必须双更新：
+合并完成后，不仅更新主仓库子模块指针，还要更新主项目中的子模块工作副本到最新 `main`。
 
-1. `ROOT_REPO` (worktree path, usually current dir)
-2. `MAIN_REPO` (must be `/Users/richer/richer/q-paas-studio`)
-3. `ROOT_BRANCH` (example: `feat/integration-midscene`)
-4. Module list (default: `q-ci q-deploy q-workflow q-devops-platform q-metahub`)
+## 流程
 
-## Branch Discovery Rule (Do Not Assume)
-
-Never assume all modules use the same integration branch name.
-
-For each module, detect existing remote branch candidates in this order:
-1. `origin/$ROOT_BRANCH`
-2. `origin/test/${ROOT_BRANCH#feat/}`
-3. Explicit branch name provided by user for that module
-
-If none exists, mark `branch_exists=no` and report it explicitly.
-
-## Execution Flow
-
-### Step 0: Precheck (Both Repos)
-
-Run and inspect:
-
-```bash
-git -C "$ROOT_REPO" status --short
-git -C "$ROOT_REPO" submodule status
-git -C "$MAIN_REPO" status --short
-git -C "$MAIN_REPO" submodule status
-```
-
-If dirty state exists, report it first. Do not hide it.
-
-### Step 1: Merge Integration Branches in Submodules
-
-For each module with existing integration branch:
-
-```bash
-git -C "$m" fetch origin --prune
-git -C "$m" checkout main
-git -C "$m" pull --ff-only origin main
-# use resolved branch name: $BR
-git -C "$m" merge --no-ff "origin/$BR" -m "merge: integrate $BR"
-git -C "$m" push origin main
-```
-
-### Step 2: Merge Root Integration Branch (If Present)
-
-```bash
-git -C "$ROOT_REPO" fetch origin --prune
-git -C "$ROOT_REPO" checkout main
-git -C "$ROOT_REPO" pull --ff-only origin main
-git -C "$ROOT_REPO" merge --no-ff "origin/$ROOT_BRANCH" -m "merge: integrate $ROOT_BRANCH"
-```
-
-If root branch does not exist, report `root_branch_exists=no`.
-
-### Step 3: Refresh Root Submodule Pointers and Push
-
-After submodule merges:
-
-```bash
-for m in q-ci q-deploy q-workflow q-devops-platform q-metahub; do
-  git -C "$ROOT_REPO/$m" fetch origin --prune
-  git -C "$ROOT_REPO/$m" checkout main
-  git -C "$ROOT_REPO/$m" pull --ff-only origin main
-done
-
-git -C "$ROOT_REPO" add q-ci q-deploy q-workflow q-devops-platform q-metahub
-git -C "$ROOT_REPO" commit -m "chore: refresh submodule references after integration merges" || true
-git -C "$ROOT_REPO" push origin main
-```
-
-### Step 4: Backfill MAIN_REPO (Mandatory)
-
-```bash
-git -C "$MAIN_REPO" checkout main
-git -C "$MAIN_REPO" pull --ff-only origin main
-git -C "$MAIN_REPO" submodule sync --recursive
-git -C "$MAIN_REPO" submodule update --init --recursive
-```
-
-## Mandatory Verification (Evidence Before Claim)
-
-Run and report these exact checks:
-
-```bash
-# 1) branch inclusion check (must be 0 for each relevant branch)
-git -C "$module" rev-list --count origin/main..origin/$BR
-
-# 2) module freshness check (must be behind=0 ahead=0)
-git -C "$module" rev-list --count HEAD..origin/main
-git -C "$module" rev-list --count origin/main..HEAD
-
-# 3) dual-repo clean checks
-git -C "$ROOT_REPO" status --short
-git -C "$MAIN_REPO" status --short
-```
-
-Do not say "completed" until all required checks pass.
-
-## Output Format
-
-Always provide:
-1. Which branch was detected per module
-2. Which modules were merged and pushed
-3. Root commit pushed on `origin/main`
-4. Final pointer commits for all modules in `MAIN_REPO`
-5. Any module without target branch (explicit `not_found`)
-
-## Red Flags
-
-- Running `git submodule update --remote` and claiming branch merge is complete
-- Assuming all modules use `feat/...` while some use `test/...`
-- Verifying only worktree but not `MAIN_REPO`
-- Claiming success without `rev-list` numeric evidence
+1. 初始化需求分支：
+主仓库和目标子模块先 `fetch/pull origin main`，再切同名需求分支。
+2. 需求开发：
+只在需求分支上开发；中途新增模块时按同样规则补齐同名分支。
+3. 提交与推送：
+按用户指令提交并推送需求分支，不自动执行 main 合并。
+4. 合并 main（仅用户明确要求时）：
+先合并并推送各子模块 `main`，再回主仓库更新并提交子模块指针到主仓 `main`。
+5. 主项目回填：
+回到非 worktree 主项目目录，执行 `pull + submodule sync/update`，确保主项目与远端一致。
+6. 结束校验：
+以主项目（非 worktree）`status` 与 `submodule status` 作为最终完成依据。

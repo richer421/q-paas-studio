@@ -1,0 +1,4 @@
+interface:
+  display_name: "Submodule Release Guard"
+  short_description: "Execute safe submodule+worktree mainline merge flow."
+  default_prompt: "Use this skill to merge integration branches into each submodule main, update root pointers, and verify MAIN_REPO consistency."

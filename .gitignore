@@ -13,3 +13,9 @@ q-infra/logs/
 skills/
 docs/
 worktrees/
+
+# Keep project-local Codex skills in repo
+!.codex/
+!.codex/skills/
+!.codex/skills/submodule-worktree-release-guard/
+!.codex/skills/submodule-worktree-release-guard/**

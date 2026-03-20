@@ -275,3 +275,18 @@ git -C "$TARGET" checkout -b "$BRANCH"
 ## 提交规范
 
 使用 Conventional Commits：`feat` / `fix` / `docs` / `refactor` / `chore`
+
+## 项目专属 Skill（本仓库）
+
+当任务涉及以下关键词时，必须先读取并遵循本地 skill，再执行命令：
+- submodule + worktree 流程
+- 更新所有模块
+- integration 分支合并到 main
+- 主仓指针更新与 MAIN_REPO 回填
+
+本地 skill 路径：
+- `.codex/skills/submodule-worktree-release-guard/SKILL.md`
+
+约束：
+- 优先使用项目内 skill，不要退回全局同名/近似 skill。
+- 完成判定必须包含 `MAIN_REPO` 证据，不可只看当前 worktree。

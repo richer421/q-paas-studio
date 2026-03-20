@@ -28,6 +28,7 @@ app 依赖 domain；domain 不反向依赖 app 的流程编排细节。
 
 1. 入口集中：
 在 `app.go` 统一暴露业务能力方法；方法尽量薄，主要做编排与转发。
+推荐使用包级门面对象风格：`type app struct{}; var App = new(app)`。
 2. 按业务拆文件：
 同一业务域按 `list/create/update/delete/get` 组织在对应文件中，避免 app 巨石文件。
 3. 转换与封装：
@@ -36,6 +37,8 @@ app 依赖 domain；domain 不反向依赖 app 的流程编排细节。
 复杂规则（策略、核心约束、跨对象语义）不留在 app 层，迁移到 domain 层抽象。
 5. 错误语义：
 对外错误信息保持业务可读；底层错误按需要包装，不泄漏无关实现细节。
+6. 结构体约束：
+app 门面结构体保持无状态（空结构体）；不要把 `Service/Repo` 作为字段塞进 `type app struct{...}` 再通过构造函数注入。
 
 项目中立示例（仅示意结构）：
 
@@ -47,13 +50,13 @@ import (
 	"example/internal/domain/order"
 )
 
-type App struct {
-	orderSvc order.Service
-}
+type app struct{}
 
-func (a *App) CreateOrder(ctx context.Context, req CreateOrderReq) (*OrderDTO, error) {
+var App = new(app)
+
+func (a *app) CreateOrder(ctx context.Context, req CreateOrderReq) (*OrderDTO, error) {
 	cmd := toCreateOrderCommand(req)        // DTO -> domain command
-	agg, err := a.orderSvc.Create(ctx, cmd) // 编排调用 domain
+	agg, err := order.App.Create(ctx, cmd)  // 编排调用 domain 门面
 	if err != nil {
 		return nil, wrapBizErr(err)
 	}
@@ -136,10 +139,8 @@ func RegisterRoutes(r *gin.Engine) {
 正例（推荐）：
 
 ```go
-func BuildHTTPServer(db *sql.DB) *gin.Engine {
-	repo := orderrepo.New(db)
-	svc := order.NewService(repo)
-	h := handler.NewOrderHandler(svc)
+func InitHTTPServer() *gin.Engine {
+	h := handler.App // 已在启动阶段完成初始化
 
 	r := gin.New()
 	RegisterOrderRoutes(r, h)

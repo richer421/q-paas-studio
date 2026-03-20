@@ -97,6 +97,59 @@ git -C "$MAIN_REPO" status --short
 git -C "$MAIN_REPO" submodule status
 ```
 
+## 全模块更新流程（防漏合并，强约束）
+
+当用户明确要求“更新所有模块”时，必须先确认这是哪一种更新，再执行命令：
+
+1. 仅同步子模块到主仓记录的提交（`submodule update --init --recursive`）。
+2. 将某个需求分支（例如 `feat/integration-midscene`）在多个子模块合并回 `main`。
+
+严禁把这两种更新混为一谈。`git submodule update --remote` 只会更新工作区子模块 checkout，不代表“需求分支已经合并到 main”。
+
+若属于第 2 类（跨模块合并需求分支），必须执行以下检查与收尾：
+
+```bash
+# 输入参数（示例）
+BRANCH=feat/integration-midscene
+MODULES="q-ci q-deploy q-workflow"
+
+# A) 先扫描：分支是否存在、是否未合并
+for m in $MODULES; do
+  git -C "$m" fetch origin --prune
+  git -C "$m" show-ref --verify --quiet "refs/remotes/origin/$BRANCH"
+  # 若输出 >0，表示分支有提交未进入 main
+  git -C "$m" rev-list --count "origin/main..origin/$BRANCH"
+done
+
+# B) 再处理：每个模块 merge 到 main 并 push main
+for m in $MODULES; do
+  git -C "$m" checkout -B "$BRANCH" "origin/$BRANCH"
+  git -C "$m" checkout main
+  git -C "$m" pull --ff-only origin main
+  git -C "$m" merge --no-ff "$BRANCH"
+  git -C "$m" push origin main
+done
+
+# C) 主仓 main 提交子模块指针
+git checkout main
+git pull --ff-only origin main
+git add $MODULES
+git commit -m "chore: update submodule references for $BRANCH"
+git push origin main
+
+# D) 强制验收：分支提交应已全部进入 main（必须为 0）
+for m in $MODULES; do
+  git -C "$m" fetch origin --prune
+  git -C "$m" rev-list --count "origin/main..origin/$BRANCH"
+done
+```
+
+补充约束：
+
+- 本项目主干分支统一使用 `main`（不是 `master`）。
+- 若某模块不存在该需求分支，必须显式报告“该模块无此分支”，不能假设已合并。
+- 只有当“子模块 main 已 push + 主仓指针已 push + MAIN_REPO 回填完成”三项都完成，才能宣告“所有模块更新完成”。
+
 ## Worktree 场景要求（重点）
 
 在 `git worktree` 模式下，开发发生在哪个 worktree 不重要，关键是任务结束后必须回填非-worktree主工作目录。

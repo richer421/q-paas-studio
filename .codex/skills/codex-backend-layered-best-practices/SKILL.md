@@ -40,28 +40,91 @@ app 依赖 domain；domain 不反向依赖 app 的流程编排细节。
 6. 结构体约束：
 app 门面结构体保持无状态（空结构体）；不要把 `Service/Repo` 作为字段塞进 `type app struct{...}` 再通过构造函数注入。
 
-项目中立示例（仅示意结构）：
+推荐目录结构（中立模板）：
+
+```text
+app/
+└── <feature>/                # 单一业务域入口
+    ├── app.go                # 对外暴露该域的应用层门面
+    ├── <action>.go           # 单个用例的编排逻辑，如 create/list/get/update
+    └── vo/
+        └── <feature>.go      # 该域对外入参/出参视图模型
+
+domain/
+└── <feature>/                # 单一业务域的领域抽象
+    ├── <role>.go             # 根包门面：接口、配置、工厂
+    ├── model/
+    │   └── types.go          # 稳定领域语义和跨实现共享端口
+    └── <impl_name>/          # 某个具体实现子包
+        └── <role>.go         # 实现根包定义的接口
+
+infra/
+├── <dependency_a>/           # 外部系统实现，如 git / queue / ci / config center
+└── <dependency_b>/           # 仓储或第三方客户端实现
+```
+
+目录解释：
+
+1. `app/<feature>/app.go`
+该业务域唯一稳定入口，只负责流程编排和模型转换。
+2. `app/<feature>/<action>.go`
+按用例拆分薄方法，避免 `app.go` 变成巨石。
+3. `domain/<feature>/<role>.go`
+放接口、配置、工厂，不直接堆具体实现细节。
+4. `domain/<feature>/model/types.go`
+放稳定领域语义；当根包和子实现之间有双向依赖风险时，用它隔离共享类型和端口。
+5. `domain/<feature>/<impl_name>/`
+放某一种具体实现，命名按策略或实现差异命名，而不是按临时动作命名。
+6. `infra/<dependency_x>/`
+放对外部依赖的技术实现；domain 只依赖接口，不直接依赖这里的细节。
+
+贴近项目的 app 示例：
 
 ```go
-package app
+package deploy
 
 import (
 	"context"
-	"example/internal/domain/order"
+
+	"github.com/example/q-paas/app/deploy/vo"
+	"github.com/example/q-paas/domain/engine"
+	"github.com/example/q-paas/domain/engine/gitops"
+	render "github.com/example/q-paas/domain/render"
 )
 
 type app struct{}
 
 var App = new(app)
 
-func (a *app) CreateOrder(ctx context.Context, req CreateOrderReq) (*OrderDTO, error) {
-	cmd := toCreateOrderCommand(req)        // DTO -> domain command
-	agg, err := order.App.Create(ctx, cmd)  // 编排调用 domain 门面
+func (a *app) Deploy(ctx context.Context, req vo.DeployReq) (vo.ReleaseVO, error) {
+	deployCtx, err := a.loadDeployContext(ctx, req)
 	if err != nil {
-		return nil, wrapBizErr(err)
+		return vo.ReleaseVO{}, err
 	}
-	out := toOrderDTO(agg) // domain -> DTO
-	return &out, nil
+
+	renderer, err := render.New(render.Config{Type: render.TypeK8sNative})
+	if err != nil {
+		return vo.ReleaseVO{}, err
+	}
+
+	deployEngine, err := engine.New(engine.Config{
+		Type: engine.TypeGitOps,
+		GitOps: gitops.EngineConfig{},
+	}, renderer, gitClient, releaseRepo)
+	if err != nil {
+		return vo.ReleaseVO{}, err
+	}
+
+	in, err := buildDeployInput(deployCtx)
+	if err != nil {
+		return vo.ReleaseVO{}, err
+	}
+
+	res, err := deployEngine.Deploy(ctx, in)
+	if err != nil {
+		return vo.ReleaseVO{}, err
+	}
+	return convertToReleaseVO(res), nil
 }
 ```
 
@@ -77,42 +140,187 @@ func (a *app) CreateOrder(ctx context.Context, req CreateOrderReq) (*OrderDTO, e
 Git、仓储、外部系统通过接口注入（如 `GitClient`、`ReleaseRepo`），实现可替换、可测试。
 5. 默认实现可回退：
 允许在构造函数中提供合理默认实现，但不破坏依赖注入边界。
+6. 命名必须体现领域语义：
+优先使用 `Builder`、`Engine`、`Renderer`、`Planner`、`Dispatcher` 等能表达职责边界的名称；不要默认落成泛化的 `Service`。
+7. 上下游对象命名也要语义化：
+domain 输入输出优先使用 `BuildCommand`、`DeployInput`、`RenderResult` 这类稳定业务名，避免 `TriggerCommand`、`CompleteCommand` 这类只描述过程动作、缺少领域上下文的命名。
+8. 有现成同类模块时先对齐风格：
+如果仓库里已有同类模块（如 `q-deploy` 的 `engine/render` 风格），优先复用其抽象层次、命名模式和小函数拆分习惯，而不是重新发明一套 `service` 风格。
+9. 根包与子实现存在双向依赖风险时，引入 `model` 子包：
+把稳定输入输出语义和外部依赖端口放到 `domain/<feature>/model`，根包做别名/工厂，子实现只依赖 `model`，避免 import cycle。
+10. 门面接口定义优先放在根包门面文件：
+例如 `builder.go`、`pipeline.go`、`artifact.go` 这类文件应承载该职责对外公开的接口；`model` 不应承载“这个域对外暴露什么能力”的定义。
 
-项目中立示例（仅示意结构）：
+推荐目录结构（中立模板）：
+
+```text
+domain/
+└── <feature>/                    # 单一功能域
+    ├── aliases.go                # 可选：根包对外别名，保持引用路径稳定
+    ├── <role_a>.go               # 根包门面一：接口/配置/工厂
+    ├── <role_b>.go               # 根包门面二：接口/配置/工厂
+    ├── model/
+    │   └── types.go              # 稳定领域模型、共享输入输出、依赖端口
+    ├── <impl_a>/
+    │   └── <role_a>.go           # 第一种具体实现
+    └── <impl_b>/
+        └── <role_b>.go           # 第二种具体实现
+
+infra/
+├── <external_system>/
+│   └── client.go                 # 外部系统客户端或适配器
+└── <repository>/
+    └── repo.go                   # 仓储实现
+```
+
+目录解释：
+
+1. `aliases.go`
+只在“根包需要保持旧引用路径稳定”时使用；不是所有域都必须有。
+2. `<role_a>.go` / `<role_b>.go`
+表示同一功能域内两个不同层级或不同职责的抽象，例如选择器、编排器、渲染器、执行器。
+3. `model/types.go`
+是领域稳定层，不是“杂物间”；这里只放真正跨实现共享的语义和端口，不放根包对外门面接口。
+4. `<impl_a>/` / `<impl_b>/`
+表示具体策略实现目录。目录名应该体现“实现差异”，例如 `local`、`remote`、`gitops`、`native`，而不是 `service_impl` 这类空泛名字。
+5. `infra/<external_system>/`
+承接第三方系统调用细节。
+6. `infra/<repository>/`
+承接仓储落库、查询和模型映射细节。
+
+贴近项目的 domain 根包示例：
 
 ```go
-package order
+package build
 
-import "context"
+import (
+	"context"
+	"fmt"
 
-type Repository interface {
-	Save(ctx context.Context, agg *Aggregate) error
+	"github.com/example/q-ci/domain/build/jenkins_builder"
+	"github.com/example/q-ci/domain/build/standard_pipeline"
+	buildmodel "github.com/example/q-ci/domain/build/model"
+)
+
+type BuildCommand = buildmodel.BuildCommand
+type CallbackConfig = buildmodel.CallbackConfig
+type Artifact = buildmodel.Artifact
+type ArtifactRepository = buildmodel.ArtifactRepository
+type Dispatcher = buildmodel.Dispatcher
+
+type Builder interface {
+	Build(ctx context.Context, req BuildDispatch) error
 }
 
-type Service interface {
-	Create(ctx context.Context, cmd CreateCommand) (*Aggregate, error)
+type Pipeline interface {
+	Build(ctx context.Context, cmd BuildCommand, callback CallbackConfig) (*Artifact, bool, error)
+	Complete(ctx context.Context, completion BuildCompletion) error
 }
 
-type service struct {
-	repo Repository
+type BuilderType string
+
+const (
+	BuilderTypeJenkins BuilderType = "jenkins"
+)
+
+type BuilderConfig struct {
+	Type BuilderType
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
-}
-
-func (s *service) Create(ctx context.Context, cmd CreateCommand) (*Aggregate, error) {
-	if err := validateCreate(cmd); err != nil {
-		return nil, err
+func NewBuilder(cfg BuilderConfig, dispatcher Dispatcher) (Builder, error) {
+	switch cfg.Type {
+	case "", BuilderTypeJenkins:
+		return jenkins_builder.New(dispatcher), nil
+	default:
+		return nil, fmt.Errorf("build: unsupported builder type %q", cfg.Type)
 	}
-	agg, err := buildAggregate(cmd)
-	if err != nil {
-		return nil, err
+}
+
+type PipelineType string
+
+const (
+	PipelineTypeStandard PipelineType = "standard"
+)
+
+type PipelineConfig struct {
+	Type PipelineType
+}
+
+func NewPipeline(cfg PipelineConfig, artifacts ArtifactRepository, builder Builder) (Pipeline, error) {
+	switch cfg.Type {
+	case "", PipelineTypeStandard:
+		return standard_pipeline.New(artifacts, builder), nil
+	default:
+		return nil, fmt.Errorf("build: unsupported pipeline type %q", cfg.Type)
 	}
-	if err := s.repo.Save(ctx, agg); err != nil {
-		return nil, err
+}
+```
+
+贴近项目的 Builder 子实现示例：
+
+```go
+package jenkins_builder
+
+import (
+	"context"
+
+	buildmodel "github.com/example/q-ci/domain/build/model"
+)
+
+type builder struct {
+	dispatcher buildmodel.Dispatcher
+}
+
+func New(dispatcher buildmodel.Dispatcher) *builder {
+	return &builder{
+		dispatcher: dispatcher,
 	}
-	return agg, nil
+}
+
+func (b *builder) Build(ctx context.Context, req buildmodel.BuildDispatch) error {
+	return b.dispatcher.Dispatch(ctx, req)
+}
+```
+
+贴近项目的 Pipeline 子实现示例：
+
+```go
+package standard_pipeline
+
+import (
+	"context"
+	"fmt"
+
+	buildmodel "github.com/example/q-ci/domain/build/model"
+)
+
+type pipeline struct {
+	artifacts buildmodel.ArtifactRepository
+	builder   buildmodel.Builder
+}
+
+func New(artifacts buildmodel.ArtifactRepository, builder buildmodel.Builder) *pipeline {
+	return &pipeline{
+		artifacts: artifacts,
+		builder:   builder,
+	}
+}
+
+func (p *pipeline) Build(ctx context.Context, cmd buildmodel.BuildCommand, callback buildmodel.CallbackConfig) (*buildmodel.Artifact, bool, error) {
+	artifact := buildArtifact(cmd, resolveImageTag(cmd))
+	if err := p.artifacts.Create(ctx, artifact); err != nil {
+		return nil, false, err
+	}
+	if err := p.builder.Build(ctx, buildmodel.BuildDispatch{
+		ArtifactID: artifact.ID,
+		ImageTag:   artifact.ImageTag,
+	}); err != nil {
+		return nil, true, fmt.Errorf("trigger build: %w", err)
+	}
+	if err := p.artifacts.MarkRunning(ctx, artifact.ID); err != nil {
+		return nil, true, err
+	}
+	return artifact, true, nil
 }
 ```
 

@@ -4,38 +4,158 @@
 
 controller:
   image:
-    repository: jenkins/jenkins
-    tag: lts-jdk17
+    repository: q-paas-jenkins
+    tag: lts-jdk17-ci
+    pullPolicy: IfNotPresent
 
   admin:
     username: admin
     password: changeme
 
+  runAsUser: 0
+  containerSecurityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+
+  numExecutors: 2
+  jenkinsUrl: http://localhost:30090
+
   # 优化资源配置，确保丝滑部署
   resources:
     requests:
       cpu: 500m
-      memory: 1Gi
+      memory: 2Gi
     limits:
       cpu: "2"
-      memory: 2Gi
+      memory: 4Gi
 
   serviceType: NodePort
   servicePort: 8080
   nodePort: 30090
 
-  # 本地环境不强制安装额外插件，避免依赖解析失败导致 init 容器崩溃
-  # 如需固定插件版本，可以在这里配置；当前设置为完全关闭插件安装逻辑。
-  installPlugins: false
+  installPlugins:
+    - kubernetes:4423.vb_59f230b_ce53
+    - workflow-aggregator:608.v67378e9d3db_1
+    - git:5.10.0
+    - configuration-as-code:2037.v8e5349845172
+    - job-dsl
+    - pipeline-utility-steps
+    - credentials-binding
 
-  # 关闭默认 JCasC 配置，避免依赖 configuration-as-code 插件
+  overwritePlugins: true
+
+  containerEnv:
+    - name: JENKINS_CI_JOB_NAME
+      value: q-ci-build
+    - name: JENKINS_TEMPLATE_REPO_URL
+      value: https://github.com/richer421/q-jenkins-templates.git
+    - name: JENKINS_TEMPLATE_REPO_BRANCH
+      value: main
+    - name: JENKINS_TEMPLATE_REPO_CREDENTIALS_ID
+      value: q-paas-github
+
+  additionalSecrets:
+    - name: jenkins-template-github-username
+      value: richer421
+    - name: jenkins-template-github-token
+      value: replace-me
+    - name: jenkins-source-git-username
+      value: replace-me
+    - name: jenkins-source-git-token
+      value: replace-me
+    - name: harbor-registry-username
+      value: replace-me
+    - name: harbor-registry-password
+      value: replace-me
+
   JCasC:
-    defaultConfig: false
+    defaultConfig: true
+    configScripts:
+      q-paas-credentials: |
+        credentials:
+          system:
+            domainCredentials:
+              - credentials:
+                  - usernamePassword:
+                      scope: GLOBAL
+                      id: "q-paas-github"
+                      username: "${jenkins-template-github-username}"
+                      password: "${jenkins-template-github-token}"
+                      description: "GitHub credentials for q-jenkins-templates"
+                  - usernamePassword:
+                      scope: GLOBAL
+                      id: "q-paas-git-http"
+                      username: "${jenkins-source-git-username}"
+                      password: "${jenkins-source-git-token}"
+                      description: "HTTP credentials for source repositories built by q-ci"
+                  - usernamePassword:
+                      scope: GLOBAL
+                      id: "q-paas-harbor"
+                      username: "${harbor-registry-username}"
+                      password: "${harbor-registry-password}"
+                      description: "Harbor registry credentials used by q-ci pipelines"
+      q-paas-jobs: |
+        jobs:
+          - script: |-
+              def jobName = System.getenv('JENKINS_CI_JOB_NAME') ?: 'q-ci-build'
+              def templateRepoURL = System.getenv('JENKINS_TEMPLATE_REPO_URL') ?: 'https://github.com/richer421/q-jenkins-templates.git'
+              def templateRepoBranch = System.getenv('JENKINS_TEMPLATE_REPO_BRANCH') ?: 'main'
+              def templateRepoCredentialsID = System.getenv('JENKINS_TEMPLATE_REPO_CREDENTIALS_ID') ?: 'q-paas-github'
+
+              pipelineJob(jobName) {
+                description('Q-PaaS Studio q-ci build job loaded from GitHub-managed templates.')
+                parameters {
+                  stringParam('PIPELINE_NAME', 'standard', 'q-ci 选择的官方 CI 流程')
+                  textParam('PIPELINE_STAGES', '["checkout","compile","image_build","image_push"]', 'q-ci 下发的官方流程阶段定义')
+                  stringParam('ARTIFACT_ID', '', 'q-ci 构建记录 ID')
+                  stringParam('REPO_URL', '', '目标代码仓库地址')
+                  stringParam('REF_TYPE', 'branch', '代码引用类型')
+                  stringParam('REF_VALUE', '', '分支名、tag 名或 commit sha')
+                  stringParam('IMAGE_REGISTRY', '', '镜像仓库地址')
+                  stringParam('IMAGE_REPO', '', '镜像仓库路径')
+                  stringParam('IMAGE_TAG', '', '镜像 tag')
+                  stringParam('MAKEFILE_PATH', './Makefile', 'Makefile 路径')
+                  stringParam('MAKE_COMMAND', 'make build', '编译命令')
+                  stringParam('DOCKERFILE_PATH', './Dockerfile', 'Dockerfile 路径')
+                  stringParam('DOCKER_CONTEXT', '.', 'Docker build context')
+                  textParam('BUILD_ARGS', '{}', 'JSON 格式 build args')
+                  stringParam('CALLBACK_URL', '', 'q-ci 回调地址')
+                  stringParam('CALLBACK_TOKEN', '', 'q-ci 回调 token')
+                }
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url(templateRepoURL)
+                          credentials(templateRepoCredentialsID)
+                        }
+                        branch('*/' + templateRepoBranch)
+                      }
+                    }
+                    scriptPath('pipelines/q-ci/Jenkinsfile')
+                    lightweight(true)
+                  }
+                }
+                properties {
+                  disableConcurrentBuilds()
+                }
+              }
 
 # 持久化存储
 persistence:
   enabled: true
   size: 5Gi
+  volumes:
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
+        type: Socket
+  mounts:
+    - mountPath: /var/run/docker.sock
+      name: docker-sock
 
 # Agent 配置
 agent:

@@ -18,3 +18,7 @@
 	path = q-devops-platform
 	url = https://github.com/richer421/q-devops-platform.git
 	branch = main
+[submodule "q-jenkins-templates"]
+	path = q-jenkins-templates
+	url = https://github.com/richer421/q-jenkins-templates.git
+	branch = main

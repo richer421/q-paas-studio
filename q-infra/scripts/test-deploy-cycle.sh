@@ -22,13 +22,13 @@ log_step "阶段 1: 清理现有部署"
 # 卸载应用服务
 for service in gitlab jenkins harbor; do
     log_info "卸载 $service..."
-    "$SCRIPT_DIR/deploy.sh" destroy --service "$service" --mode helm 2>/dev/null || true
+    "$SCRIPT_DIR/deploy.sh" destroy --service "$service" 2>/dev/null || true
 done
 
 # 卸载中间件
 for service in mysql minio redis postgresql kafka; do
     log_info "卸载 $service..."
-    "$SCRIPT_DIR/deploy.sh" destroy --service "$service" --mode helm 2>/dev/null || true
+    "$SCRIPT_DIR/deploy.sh" destroy --service "$service" 2>/dev/null || true
 done
 
 # 等待 Pod 完全删除
@@ -49,7 +49,7 @@ log_step "阶段 2: 部署中间件服务"
 
 for service in postgresql redis minio mysql kafka; do
     log_info "部署 $service..."
-    "$SCRIPT_DIR/deploy.sh" deploy --service "$service" --mode helm
+    "$SCRIPT_DIR/deploy.sh" deploy --service "$service"
     echo
 done
 
@@ -70,7 +70,7 @@ log_step "阶段 3: 部署应用服务"
 
 # GitLab
 log_info "部署 GitLab..."
-"$SCRIPT_DIR/deploy.sh" deploy --service gitlab --mode helm
+"$SCRIPT_DIR/deploy.sh" deploy --service gitlab
 echo
 
 # 等待 GitLab 核心组件就绪
@@ -81,7 +81,7 @@ kubectl wait --for=condition=ready pod -l app=gitlab-runner -n "$NAMESPACE" --ti
 
 # Jenkins
 log_info "部署 Jenkins..."
-"$SCRIPT_DIR/deploy.sh" deploy --service jenkins --mode helm
+"$SCRIPT_DIR/deploy.sh" deploy --service jenkins
 echo
 
 log_info "等待 Jenkins 就绪..."
@@ -89,7 +89,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=jenkins -n "$NA
 
 # Harbor
 log_info "部署 Harbor..."
-"$SCRIPT_DIR/deploy.sh" deploy --service harbor --mode helm
+"$SCRIPT_DIR/deploy.sh" deploy --service harbor
 echo
 
 log_info "等待 Harbor 就绪..."
@@ -140,13 +140,13 @@ log_step "阶段 5: 卸载所有服务"
 # 卸载应用服务
 for service in gitlab jenkins harbor; do
     log_info "卸载 $service..."
-    "$SCRIPT_DIR/deploy.sh" destroy --service "$service" --mode helm
+    "$SCRIPT_DIR/deploy.sh" destroy --service "$service"
 done
 
 # 卸载中间件
 for service in mysql minio redis postgresql kafka; do
     log_info "卸载 $service..."
-    "$SCRIPT_DIR/deploy.sh" destroy --service "$service" --mode helm
+    "$SCRIPT_DIR/deploy.sh" destroy --service "$service"
 done
 
 log_info "等待资源清理..."

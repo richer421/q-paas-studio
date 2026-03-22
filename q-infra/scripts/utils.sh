@@ -26,7 +26,7 @@ log_step()  { echo -e "${CYAN}[STEP]${NC}  $*"; }
 # 已知服务列表
 # ============================================================
 # DevOps 服务
-DEVOPS_SERVICES="jenkins harbor argocd"
+DEVOPS_SERVICES="gitlab jenkins harbor argocd"
 # 中间件服务
 MIDDLEWARE_SERVICES="mysql redis postgresql minio kafka"
 # 全部服务
@@ -48,43 +48,8 @@ validate_service() {
 }
 
 # ============================================================
-# 环境检测
+# Kubernetes / Helm 检测
 # ============================================================
-detect_runtime() {
-    # 返回 "kubernetes" 或 "docker"
-    if command -v kubectl &>/dev/null && kubectl cluster-info &>/dev/null 2>&1; then
-        echo "kubernetes"
-    elif command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
-        echo "docker"
-    else
-        log_error "Neither Kubernetes nor Docker detected"
-        return 1
-    fi
-}
-
-require_docker() {
-    if ! command -v docker &>/dev/null; then
-        log_error "docker is not installed"
-        return 1
-    fi
-    if ! docker info &>/dev/null 2>&1; then
-        log_error "Docker daemon is not running"
-        return 1
-    fi
-}
-
-require_docker_compose() {
-    if docker compose version &>/dev/null 2>&1; then
-        COMPOSE_CMD="docker compose"
-    elif command -v docker-compose &>/dev/null; then
-        COMPOSE_CMD="docker-compose"
-    else
-        log_error "docker compose is not available"
-        return 1
-    fi
-    export COMPOSE_CMD
-}
-
 require_helm() {
     if ! command -v helm &>/dev/null; then
         log_error "helm is not installed"
@@ -92,6 +57,10 @@ require_helm() {
     fi
     if ! command -v kubectl &>/dev/null; then
         log_error "kubectl is not installed"
+        return 1
+    fi
+    if ! kubectl cluster-info &>/dev/null 2>&1; then
+        log_error "kubectl is not connected to a Kubernetes cluster"
         return 1
     fi
 }

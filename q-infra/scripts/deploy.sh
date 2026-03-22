@@ -129,18 +129,48 @@ Usage: $(basename "$0") <action> [options]
 Actions:
   deploy    Deploy infrastructure service(s)
   destroy   Destroy infrastructure service(s)
+  status    Show infrastructure service status
 
 Options:
-  --service <name>   Target service: jenkins|harbor|argocd|mysql|redis|postgresql|minio|kafka|all
+  --service <name>   Target service: gitlab|jenkins|harbor|argocd|mysql|redis|postgresql|minio|kafka|all
 
 Examples:
   $(basename "$0") deploy --service mysql
   $(basename "$0") deploy --service redis
   $(basename "$0") deploy --service kafka
   $(basename "$0") destroy --service harbor
+  $(basename "$0") status --service all
   $(basename "$0") deploy --service all
 EOF
     exit 1
+}
+
+show_status() {
+    local service="$1"
+    require_helm
+
+    if [[ "$service" == "all" ]]; then
+        log_step "Namespace q-infra"
+        kubectl get pods -n q-infra
+        echo
+        kubectl get svc -n q-infra
+        echo
+        log_step "Namespace argocd"
+        kubectl get pods -n argocd 2>/dev/null || true
+        echo
+        kubectl get svc -n argocd 2>/dev/null || true
+        return 0
+    fi
+
+    local namespace="${INFRA_NAMESPACE:-q-infra}"
+    if [[ "$service" == "argocd" ]]; then
+        namespace="argocd"
+    fi
+
+    log_step "Helm release status: $service ($namespace)"
+    helm status "$service" -n "$namespace" || true
+    echo
+    kubectl get pods -n "$namespace" | grep -E "^NAME|$service" || true
 }
 
 main() {
@@ -152,7 +182,6 @@ main() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --service) service="$2"; shift 2 ;;
-            --mode)    shift 2 ;;  # 忽略 mode 参数，仅支持 helm
             *)         log_error "Unknown option: $1"; usage ;;
         esac
     done
@@ -179,6 +208,9 @@ main() {
                 ;;
             destroy)
                 helm_destroy "$svc"
+                ;;
+            status)
+                show_status "$svc"
                 ;;
             *)
                 log_error "Unknown action: $action"

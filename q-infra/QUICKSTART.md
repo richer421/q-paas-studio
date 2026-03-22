@@ -70,87 +70,22 @@ kubectl get svc -n argocd
 ### 步骤 2: 配置 Jenkins
 
 1. 登录 Jenkins (http://localhost:30090)
-
-2. 安装插件：
-   - Manage Jenkins → Plugins → Available plugins
-   - 搜索并安装：Docker Pipeline, Kubernetes, Git
-
-3. 配置 Harbor 凭据：
-   - Manage Jenkins → Credentials → System → Global credentials
-   - Add Credentials
-   - Kind: Username with password
-   - Username: `robot$jenkins-robot`
-   - Password: `<Harbor Robot Token>`
-   - ID: `harbor-robot`
-
-4. 配置 GitHub 凭据：
-   - Add Credentials
-   - Kind: Username with password (或 SSH Key)
-   - ID: `github-token`
+2. 按 `env/jenkins.env.example` 或 `helm/jenkins/values-overrides.yaml` 填好以下凭据：
+   - `JENKINS_TEMPLATE_GITHUB_USERNAME` / `JENKINS_TEMPLATE_GITHUB_TOKEN`
+   - `JENKINS_SOURCE_GIT_USERNAME` / `JENKINS_SOURCE_GIT_TOKEN`
+   - `HARBOR_REGISTRY_USERNAME` / `HARBOR_REGISTRY_PASSWORD`
+3. 重新部署 Jenkins，使 JCasC 自动创建 `q-ci-build` 任务并加载 GitHub 模板仓库
+4. 在 Jenkins 页面确认存在 `q-ci-build` 任务，脚本来源为 `q-jenkins-templates`
 
 ### 步骤 3: 创建 Jenkins Pipeline
 
-创建新的 Pipeline 任务，使用以下 Jenkinsfile：
+无需再在 Jenkins 页面手工新建 Pipeline。
 
-```groovy
-pipeline {
-    agent any
-
-    environment {
-        HARBOR_URL = 'localhost:30180'
-        HARBOR_PROJECT = 'q-paas'
-        IMAGE_NAME = "${HARBOR_URL}/${HARBOR_PROJECT}/myapp"
-        IMAGE_TAG = "${BUILD_NUMBER}"
-        GITOPS_REPO = 'https://github.com/your-org/gitops-config.git'
-    }
-
-    stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/your-org/your-app.git',
-                    credentialsId: 'github-token'
-            }
-        }
-
-        stage('Build Image') {
-            steps {
-                script {
-                    docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
-                }
-            }
-        }
-
-        stage('Push to Harbor') {
-            steps {
-                script {
-                    docker.withRegistry("http://${HARBOR_URL}", 'harbor-robot') {
-                        docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push()
-                        docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push('latest')
-                    }
-                }
-            }
-        }
-
-        stage('Update GitOps Config') {
-            steps {
-                script {
-                    sh """
-                        git clone ${GITOPS_REPO} gitops-config
-                        cd gitops-config
-                        sed -i 's|image: .*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g' k8s/deployment.yaml
-                        git config user.email "jenkins@example.com"
-                        git config user.name "Jenkins"
-                        git add .
-                        git commit -m "Update image to ${IMAGE_TAG}"
-                        git push origin main
-                    """
-                }
-            }
-        }
-    }
-}
-```
+- `q-ci-build` 任务会由 JCasC 自动创建
+- 任务模板来自 GitHub 仓库 `q-jenkins-templates`
+- 当前模板入口文件为 `q-jenkins-templates/pipelines/q-ci/Jenkinsfile`
+- 若需联调当前需求分支，将 `JENKINS_TEMPLATE_REPO_BRANCH` 改为 `feat/open-model-deploy-plan-20260321`
+- 若使用 Helm/K8s 跑真实构建，请给 Jenkins controller 或 agent 准备带 `docker` CLI 的镜像，基线镜像可参考 `helm/jenkins/image/`
 
 ### 步骤 4: 配置 ArgoCD
 
